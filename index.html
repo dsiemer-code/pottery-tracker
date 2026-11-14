@@ -1,0 +1,909 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pottery Tracker</title>
+<meta name="theme-color" content="#9A4E2F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pottery">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: phone/tablet-first journal — sticky header with two tabs, photo cards, floating "Add" button; more columns on wider screens */
+:root {
+  --bg: #F6F1EC;
+  --surface: #FFFFFF;
+  --ink: #2B231E;
+  --muted: #74675E;
+  --line: #E6DCD3;
+  --accent: #9A4E2F;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #F5E7DF;
+  --good: #3F7D58;
+  --good-soft: #E3F0E7;
+  --warn: #A5602A;
+  --warn-soft: #F8EADC;
+  --danger: #B3343F;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(43,35,30,.06), 0 4px 16px rgba(43,35,30,.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #18130F; --surface: #241D18; --ink: #F2EAE3; --muted: #B0A196; --line: #3A3029;
+    --accent: #E59C78; --accent-ink: #24160F; --accent-soft: #3A2A21; --good: #7CC79A; --good-soft: #213328;
+    --warn: #E9AE72; --warn-soft: #3A2B1D; --danger: #F07A84;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #18130F; --surface: #241D18; --ink: #F2EAE3; --muted: #B0A196; --line: #3A3029;
+  --accent: #E59C78; --accent-ink: #24160F; --accent-soft: #3A2A21; --good: #7CC79A; --good-soft: #213328;
+  --warn: #E9AE72; --warn-soft: #3A2B1D; --danger: #F07A84;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+[hidden] { display: none !important; }
+.head-right { display: flex; align-items: center; gap: 10px; }
+.signin { max-width: 400px; margin: 8vh auto 0; display: grid; gap: 14px; }
+.signin p { margin: 0; color: var(--muted); }
+.signin .err { color: var(--danger); font-size: .9rem; min-height: 1.2em; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.num { font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 10px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; margin: 0; display: flex; align-items: center; gap: 8px; }
+h1 svg { flex: none; }
+.sync { font-size: .8rem; color: var(--muted); }
+nav.tabs { display: flex; gap: 6px; padding-block: 0 10px; }
+nav.tabs button {
+  flex: 1; border: 0; background: transparent; padding: 10px 12px; border-radius: 999px;
+  font-weight: 600; font-size: 1rem; color: var(--muted);
+}
+nav.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+
+main { padding-block: 18px 110px; display: grid; gap: 16px; }
+.panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+.panel h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; margin: 0 0 12px; text-wrap: balance; }
+.label { text-transform: uppercase; letter-spacing: .07em; font-size: .72rem; font-weight: 700; color: var(--muted); }
+.banner { background: var(--warn-soft); color: var(--ink); border-radius: var(--radius); padding: 12px 14px; font-size: .92rem; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.empty { color: var(--muted); font-size: .95rem; padding-block: 6px; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.count { margin-top: 10px; color: var(--muted); font-size: .88rem; }
+
+/* Toolbar */
+.toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.toolbar .search { flex: 1 1 220px; }
+.toolbar select { flex: 1 1 160px; width: auto; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pills button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px; font-weight: 600; color: var(--ink); min-height: 42px; }
+.pills button[aria-pressed="true"], .pills button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Cards */
+.cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; min-width: 0;
+  border: 0; padding: 0; text-align: left; width: 100%; }
+.card:hover .name { color: var(--accent); }
+/* Glazes are a swatch library: two across on a phone, square photos */
+.cards.glz { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
+.cards.glz .pic { aspect-ratio: 1; }
+.cards.glz .body { padding: 10px 12px 12px; }
+.cards.glz .foot { flex-wrap: wrap; }
+.card .pic { position: relative; aspect-ratio: 4 / 3; background: var(--accent-soft); }
+.card .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card .pic .nopic { position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent); opacity: .55; }
+.card .pic .more { position: absolute; right: 8px; bottom: 8px; background: rgba(20,14,10,.6); color: #fff; font-size: .75rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.card .body { padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; }
+.card .name { font-family: var(--font-display); font-weight: 600; font-size: 1.12rem; line-height: 1.2; overflow-wrap: anywhere; }
+.card .meta { font-size: .86rem; color: var(--muted); }
+.card .notes { font-size: .9rem; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.card .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.gchips { display: flex; gap: 6px; flex-wrap: wrap; }
+.gchip { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); max-width: 100%; }
+.gchip img, .gchip .dot { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line); }
+.gchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+.chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.chip.love { background: var(--good-soft); color: var(--good); }
+.chip.no { background: var(--warn-soft); color: var(--warn); }
+.chip.ex { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+
+/* Controls */
+.btn { border: 0; border-radius: 999px; padding: 11px 18px; font-weight: 600; background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.btn.small { padding: 7px 13px; font-size: .9rem; }
+.btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--line); }
+.btn.danger.armed { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn:disabled { opacity: .6; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 6px 4px; }
+input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; min-width: 0; font-size: 16px; }
+textarea { resize: vertical; min-height: 96px; }
+label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: var(--muted); min-width: 0; }
+.fgrid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+.fgrid .full { grid-column: 1 / -1; }
+@media (max-width: 420px) { .fgrid { grid-template-columns: 1fr; } }
+
+.fab {
+  position: fixed; z-index: 6;
+  right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 6px 20px rgba(154,78,47,.35); padding: 15px 22px; font-size: 1.05rem;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+
+/* Sheet */
+.overlay { position: fixed; inset: 0; z-index: 20; background: rgba(24,16,10,.45); display: flex; align-items: flex-end; justify-content: center; }
+@media (min-width: 640px) { .overlay { align-items: center; } }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 92%; overflow: auto;
+  border-radius: 20px 20px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+@media (min-width: 640px) { .sheet { border-radius: 20px; } }
+.sheet h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; margin: 0 0 14px; }
+.sheet .actions { display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; flex-wrap: wrap; }
+.sheet .actions .right { display: flex; gap: 10px; margin-left: auto; }
+.sheet .hint { margin: 0; color: var(--muted); font-size: .85rem; }
+.sect-label { font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+
+/* Photos in the edit sheet */
+.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.ph { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--line); }
+.ph > button.img { border: 0; padding: 0; width: 100%; height: 100%; display: block; background: none; }
+.ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph .x { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(20,14,10,.65); color: #fff; font-size: 1.05rem; line-height: 1; }
+.ph .cover { position: absolute; left: 4px; bottom: 4px; background: var(--accent); color: var(--accent-ink); font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.ph-add { aspect-ratio: 1; border-radius: 12px; border: 2px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: .88rem; display: grid; place-content: center; gap: 2px; text-align: center; }
+.ph-add b { font-size: 1.5rem; line-height: 1; }
+.photo-one { display: flex; gap: 14px; align-items: center; }
+.photo-one .ph, .photo-one .ph-add { width: 112px; flex: none; }
+.photo-one .opts { display: grid; gap: 6px; justify-items: start; }
+
+/* Glaze lines on a piece */
+.gline { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; margin-bottom: 8px; }
+.gline-top { display: flex; gap: 8px; align-items: center; }
+.gline-top select, .gline-top input { flex: 1; min-width: 0; }
+.gline-top .thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; background: var(--accent-soft); }
+.l-remove { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); font-size: 1.2rem; line-height: 1; flex: none; }
+
+/* Clay bodies list */
+.clay-list { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.clay-chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); padding-left: 14px; font-weight: 600; }
+.clay-chip small { color: var(--muted); font-weight: 500; margin-left: 6px; }
+.clay-chip .x { border: 0; background: none; width: 36px; height: 36px; font-size: 1.1rem; color: var(--muted); }
+.inline-add { display: flex; gap: 8px; }
+
+/* Full-screen photo */
+.viewer { position: fixed; inset: 0; z-index: 50; background: rgba(10,7,5,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.viewer img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; border-radius: 8px; }
+.viewer .bar { display: flex; gap: 10px; align-items: center; }
+.viewer .bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,.35); }
+.viewer .bar span { color: #fff; font-weight: 600; min-width: 4ch; text-align: center; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+  background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: .95rem; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: up .22s ease-out; }
+  @keyframes up { from { transform: translateY(24px); opacity: .6; } }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="head-row">
+      <h1>
+        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="var(--accent)"/><path d="M9.5 6.5h7M10.3 6.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="var(--surface)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.4 13.2c3.6 1.4 7.6 1.4 11.2 0" stroke="var(--surface)" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>
+        Pottery Tracker
+      </h1>
+      <div class="head-right">
+        <span class="sync" id="sync">Loading…</span>
+        <button class="linkbtn" id="signout" type="button" hidden>Sign out</button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs" hidden>
+      <button role="tab" aria-selected="true" data-tab="pieces">Pieces</button>
+      <button role="tab" aria-selected="false" data-tab="glazes">Glazes</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <form class="signin panel" id="signin" hidden novalidate>
+    <h2 style="margin:0">Sign in</h2>
+    <p>Use the email and password set up for this app.</p>
+    <label class="f">Email<input id="si-email" type="email" autocomplete="username" required></label>
+    <label class="f">Password<input id="si-pass" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="si-err"></div>
+    <button class="btn" type="submit" id="si-go">Sign in</button>
+  </form>
+  <main id="view"></main>
+</div>
+
+<button class="btn fab" id="fab" type="button" hidden>
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  <span id="fab-label">Add piece</span>
+</button>
+<div id="sheet-root"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module">
+import { firebaseConfig } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, setDoc, deleteDoc, onSnapshot,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+{
+  const RATINGS = [["love", "Love it"], ["ok", "It's OK"], ["no", "Not for me"]];
+  const ratingLabel = (r) => (RATINGS.find(([k]) => k === r) || [])[1] || "";
+  const MAX_PHOTOS = 4;
+
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", offline: false };
+
+  // Local-only fallback when saving isn't available (demo mode)
+  const local = { pieces: [], glazes: [], settings: {} };
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function dateLabel(dateStr) {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  const isPhoto = (s) => typeof s === "string" && /^data:image\//.test(s);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  // Photos are shrunk and stored with the record in Firestore (no paid Storage plan needed).
+  // A Firestore record holds at most 1 MB, so each photo is kept under about 180 KB.
+  async function shrinkPhoto(file, max = 900) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+      let q = 0.82, out = c.toDataURL("image/jpeg", q);
+      while (out.length > 180000 && q > 0.4) { q -= 0.08; out = c.toDataURL("image/jpeg", q); }
+      return out;
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  function downloadFile(text, name) {
+    // BOM + CRLF so Excel opens it with the right characters and rows
+    const blob = new Blob(["﻿" + text], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2800);
+  }
+
+  // ---------- Data layer ----------
+  // Firestore keeps a copy on the device, so the app works offline and syncs when back online.
+  // Writes show up on screen right away; we don't wait for the server, only report failures.
+  const configured = firebaseConfig && firebaseConfig.apiKey && !String(firebaseConfig.apiKey).startsWith("PASTE");
+  let fs = null, auth = null, uidPath = null, unsubs = [];
+
+  function write(promiseFn) {
+    try {
+      promiseFn().catch((e) => {
+        console.error(e);
+        if (e && e.code === "permission-denied") toast("This account can't make changes.");
+        else toast("That didn't save. Try again in a moment.");
+      });
+      return true;
+    } catch (e) { console.error(e); toast("That didn't save. Try again in a moment."); return false; }
+  }
+  const ref = (col, id) => doc(fs, "users", uidPath, col, id);
+  const api = {
+    async save(col, id, data) {
+      if (!fs) { const i = local[col].findIndex((x) => x.id === id); const rec = { id, ...data }; if (i >= 0) local[col][i] = rec; else local[col].push(rec); syncLocal(); return true; }
+      return write(() => setDoc(ref(col, id), data));
+    },
+    async remove(col, id) {
+      if (!fs) { local[col] = local[col].filter((x) => x.id !== id); syncLocal(); return true; }
+      return write(() => deleteDoc(ref(col, id)));
+    },
+    // Studio-wide settings (the clay body list) live in one document
+    async saveSettings(data) {
+      if (!fs) { Object.assign(local.settings, data); syncLocal(); return true; }
+      return write(() => setDoc(doc(fs, "users", uidPath, "settings", "studio"), data, { merge: true }));
+    },
+  };
+  function syncLocal() {
+    state.pieces = local.pieces.slice();
+    state.glazes = local.glazes.slice();
+    state.settings = { ...local.settings };
+    render();
+  }
+
+  function setSync(text) { document.getElementById("sync").textContent = text; }
+  function syncLabel(snap) {
+    if (snap.metadata.hasPendingWrites) return navigator.onLine ? "Saving…" : "Saved on this device";
+    return snap.metadata.fromCache ? "Offline" : "Synced";
+  }
+
+  function showApp(on) {
+    document.getElementById("signin").hidden = on;
+    document.getElementById("view").hidden = !on;
+    document.getElementById("tabs").hidden = !on;
+    document.getElementById("fab").hidden = !on;
+    document.getElementById("signout").hidden = !on || !fs;
+  }
+
+  // Simple drawings for the demo entries, so the sample cards look like pottery
+  function demoPot(shape, glaze, clay, drip) {
+    const pots = {
+      bowl: `<path d="M70 120 Q76 214 160 216 Q244 214 250 120 Z" fill="${clay}"/><path d="M70 120 Q74 168 160 172 Q246 168 250 120 Z" fill="${glaze}"/><ellipse cx="160" cy="120" rx="90" ry="16" fill="${drip}"/><ellipse cx="160" cy="122" rx="78" ry="11" fill="${glaze}" opacity=".7"/>`,
+      vase: `<path d="M138 46h44c0 26-10 30-10 44 0 22 44 40 44 82 0 32-26 46-56 46s-56-14-56-46c0-42 44-60 44-82 0-14-10-18-10-44z" fill="${glaze}"/><path d="M106 186c10 20 28 32 54 32s44-12 54-32c-6 22-26 34-54 34s-48-12-54-34z" fill="${clay}"/><path d="M150 96c-4 16-26 30-30 52" stroke="${drip}" stroke-width="8" fill="none" stroke-linecap="round" opacity=".7"/><ellipse cx="160" cy="46" rx="22" ry="5" fill="${drip}"/>`,
+      mug: `<path d="M206 98c40 0 40 70 0 70" stroke="${glaze}" stroke-width="14" fill="none"/><rect x="100" y="78" width="112" height="136" rx="14" fill="${glaze}"/><rect x="100" y="180" width="112" height="34" rx="10" fill="${clay}"/><path d="M100 150c20 10 30-6 56 4s40 2 56-6v-20H100z" fill="${drip}" opacity=".55"/><ellipse cx="156" cy="80" rx="56" ry="8" fill="${drip}"/>`,
+      tile: `<rect x="96" y="40" width="128" height="170" rx="10" fill="${clay}"/><path d="M96 50a10 10 0 0 1 10-10h108a10 10 0 0 1 10 10v104c-14 10-22-4-34 8s-20 2-30 12-26-4-36 4-16-6-28 2z" fill="${glaze}"/><path d="M118 70c30-8 60 4 84-6" stroke="${drip}" stroke-width="10" fill="none" stroke-linecap="round" opacity=".6"/>`,
+    };
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"><rect width="320" height="240" fill="#EDE3D8"/><rect y="200" width="320" height="40" fill="#D9CBBC"/><ellipse cx="160" cy="216" rx="80" ry="8" fill="#000" opacity=".12"/>${pots[shape]}</svg>`;
+    return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  }
+
+  function connect() {
+    if (!configured) {
+      // Demo mode: nothing is saved until firebase-config.js is filled in.
+      state.offline = true; state.loaded = { p: true, g: true };
+      const d = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
+      const now = Date.now();
+      local.glazes = [
+        { id: "g1", name: "Floating Blue", brand: "Amaco Potter's Choice", rating: "love", photo: demoPot("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
+        { id: "g2", name: "Celadon", brand: "Mayco Stoneware", rating: "ok", photo: demoPot("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
+        { id: "g3", name: "Iron Red", brand: "", rating: "no", photo: demoPot("tile", "#7A2E1C", "#C9B49A", "#3A1A12"), notes: "Ran off the pot onto the kiln shelf. Never again on a vase.", createdAt: now - 1e8, example: true },
+      ];
+      local.pieces = [
+        { id: "p1", name: "Blue serving bowl", date: d(4), clay: "Speckled Buff", glazes: [{ glazeId: "g1", name: "Floating Blue", how: "3 coats inside, 2 outside" }], notes: "Gift for Aunt Jo. The speckles came through the blue nicely.", photos: [demoPot("bowl", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 4e6, example: true },
+        { id: "p2", name: "Tall bud vase", date: d(25), clay: "B-Mix", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped, 4 seconds" }, { glazeId: "g3", name: "Iron Red", how: "Poured over the shoulder" }], notes: "Iron Red ran down and glued it to the shelf. Ground the foot.", photos: [demoPot("vase", "#9DBFA6", "#C9B49A", "#7A2E1C")], createdAt: now - 3e6, example: true },
+        { id: "p3", name: "Morning mug", date: d(60), clay: "Speckled Buff", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped" }, { glazeId: "g1", name: "Floating Blue", how: "Brushed on the rim" }], notes: "Handle a bit thick. Try pulling it thinner next time.", photos: [demoPot("mug", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 2e6, example: true },
+      ];
+      local.settings = { clays: ["Speckled Buff", "B-Mix"] };
+      setSync("Demo mode");
+      showApp(true); syncLocal();
+      return;
+    }
+    const app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    try { fs = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+    catch (e) { fs = initializeFirestore(app, {}); }
+
+    onAuthStateChanged(auth, (user) => {
+      unsubs.forEach((u) => u()); unsubs = [];
+      state.pieces = []; state.glazes = []; state.settings = {}; state.loaded = { p: false, g: false };
+      if (!user) { uidPath = null; setSync(""); showApp(false); return; }
+      uidPath = user.uid;
+      showApp(true); render();
+      const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load your pieces. Check the Firestore rules in the setup guide."); };
+      unsubs.push(onSnapshot(collection(fs, "users", uidPath, "pieces"), { includeMetadataChanges: true }, (snap) => {
+        state.pieces = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        state.loaded.p = true; setSync(syncLabel(snap)); render();
+      }, onErr));
+      unsubs.push(onSnapshot(collection(fs, "users", uidPath, "glazes"), { includeMetadataChanges: true }, (snap) => {
+        state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        state.loaded.g = true; setSync(syncLabel(snap)); render();
+      }, onErr));
+      unsubs.push(onSnapshot(doc(fs, "users", uidPath, "settings", "studio"), (snap) => {
+        state.settings = snap.exists() ? snap.data() : {}; render();
+      }, onErr));
+    });
+
+    document.getElementById("signin").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = document.getElementById("si-err"), go = document.getElementById("si-go");
+      err.textContent = ""; go.disabled = true;
+      try {
+        await signInWithEmailAndPassword(auth, document.getElementById("si-email").value.trim(), document.getElementById("si-pass").value);
+      } catch (ex) {
+        const c = ex && ex.code || "";
+        err.textContent = c.includes("network") ? "No connection. Sign in once you're online." :
+          c.includes("too-many") ? "Too many tries. Wait a few minutes and try again." :
+          "That email and password don't match. Check them and try again.";
+      } finally { go.disabled = false; }
+    });
+    document.getElementById("signout").addEventListener("click", () => signOut(auth));
+  }
+
+  // ---------- Derived ----------
+  const glazeById = (id) => (id ? state.glazes.find((g) => g.id === id) : undefined);
+  const pieceById = (id) => state.pieces.find((p) => p.id === id);
+  const glazeByName = (name) => state.glazes.find((g) => (g.name || "").trim().toLowerCase() === name.trim().toLowerCase());
+  // A piece keeps each glaze's name too, so it still reads right if the glaze is later deleted
+  const lineName = (l) => { const g = glazeById(l.glazeId); return g ? g.name : l.name || "Glaze"; };
+  const clays = () => (Array.isArray(state.settings.clays) ? state.settings.clays : []);
+  const piecesWithGlaze = (gid) => state.pieces.filter((p) => (p.glazes || []).some((l) => l.glazeId === gid));
+  const pieceSort = (a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0);
+  const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example);
+  const glazeThumb = (g, cls = "") => (g && isPhoto(g.photo) ? `<img class="${cls}" src="${esc(g.photo)}" alt="">` : `<span class="dot ${cls}"></span>`);
+  const POT_ICON = `<svg width="56" height="56" viewBox="0 0 26 26" aria-hidden="true"><path d="M9.5 5.5h7M10.3 5.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  // ---------- Render ----------
+  function render() {
+    document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
+    document.getElementById("fab-label").textContent = state.tab === "glazes" ? "Add glaze" : "Add piece";
+    const v = document.getElementById("view");
+    const active = document.activeElement && document.activeElement.id;
+    const caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
+    let html = banners();
+    if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
+    else if (state.tab === "glazes") html += glazesHTML();
+    else html += piecesHTML();
+    v.innerHTML = html;
+    if (caret !== null) { const q = document.getElementById(active); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} } }
+  }
+
+  function banners() {
+    let h = "";
+    if (state.offline) h += `<div class="banner">Demo mode: nothing is saved yet. Fill in firebase-config.js (see the README) to keep records and sync between devices.</div>`;
+    if (hasExamples()) h += `<div class="banner"><span>The entries marked <span class="chip ex">Example</span> are samples to show how things look.</span><button class="btn small" data-act="clear-examples" id="clear-ex">Remove examples</button></div>`;
+    return h;
+  }
+
+  function piecesHTML() {
+    const q = state.search.trim().toLowerCase(), fg = state.filterGlaze;
+    const list = state.pieces
+      .filter((p) => !fg || (p.glazes || []).some((l) => l.glazeId === fg))
+      .filter((p) => !q || [p.name, p.notes, p.clay, ...(p.glazes || []).flatMap((l) => [lineName(l), l.how])].some((s) => (s || "").toLowerCase().includes(q)))
+      .sort(pieceSort);
+    const glazeOpts = state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+      .map((g) => `<option value="${esc(g.id)}" ${g.id === fg ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+    return `
+      <section class="panel">
+        <div class="toolbar">
+          <input class="search" id="q" type="search" placeholder="Search pieces, glazes, notes" value="${esc(state.search)}" aria-label="Search pieces">
+          ${state.glazes.length ? `<select id="filter-glaze" aria-label="Show pieces with glaze"><option value="">All glazes</option>${glazeOpts}</select>` : ""}
+        </div>
+        <div class="count num">${plural(list.length, "piece")}${fg || q ? ` of ${state.pieces.length}` : ""}${state.pieces.length ? ` · <button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
+      </section>
+      ${list.length ? `<div class="cards">${list.map(pieceCard).join("")}</div>`
+        : `<section class="panel"><div class="empty">${state.pieces.length ? "No pieces match. Try another search or glaze." : "No pieces yet. Tap “Add piece” to record a finished piece with its photos, glazes and notes."}</div></section>`}`;
+  }
+
+  function pieceCard(p) {
+    const photos = (p.photos || []).filter(isPhoto);
+    const lines = p.glazes || [];
+    return `<button class="card" type="button" data-piece="${esc(p.id)}" aria-label="Open ${esc(p.name)}">
+      <div class="pic">${photos.length ? `<img src="${esc(photos[0])}" alt="" loading="lazy">` : `<div class="nopic">${POT_ICON}</div>`}
+        ${photos.length > 1 ? `<span class="more">${photos.length} photos</span>` : ""}</div>
+      <div class="body">
+        <div class="name">${esc(p.name)}</div>
+        <div class="meta">${[dateLabel(p.date), p.clay].filter(Boolean).map(esc).join(" · ")}</div>
+        ${lines.length ? `<div class="gchips">${lines.map((l) => `<span class="gchip">${glazeThumb(glazeById(l.glazeId))}<span>${esc(lineName(l))}</span></span>`).join("")}</div>` : ""}
+        ${p.notes ? `<div class="notes">${esc(p.notes)}</div>` : ""}
+        ${p.example ? `<div><span class="chip ex">Example</span></div>` : ""}
+      </div>
+    </button>`;
+  }
+
+  function glazesHTML() {
+    const q = state.gsearch.trim().toLowerCase(), fr = state.filterRating;
+    const list = state.glazes
+      .filter((g) => !fr || g.rating === fr)
+      .filter((g) => !q || [g.name, g.brand, g.notes].some((s) => (s || "").toLowerCase().includes(q)))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const used = new Map();
+    for (const p of state.pieces) for (const l of p.glazes || []) used.set(l.glazeId, (used.get(l.glazeId) || 0) + 1);
+    return `
+      <section class="panel">
+        <div class="toolbar">
+          <input class="search" id="gq" type="search" placeholder="Search glazes" value="${esc(state.gsearch)}" aria-label="Search glazes">
+        </div>
+        <div class="pills" style="margin-top:10px" role="group" aria-label="Show glazes">
+          <button type="button" data-rating="" aria-pressed="${!fr}">All</button>
+          ${RATINGS.map(([k, label]) => `<button type="button" data-rating="${k}" aria-pressed="${fr === k}">${label}</button>`).join("")}
+        </div>
+        <div class="count num">${plural(list.length, "glaze")}${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""}</div>
+      </section>
+      ${list.length ? `<div class="cards glz">${list.map((g) => {
+        const n = used.get(g.id) || 0;
+        return `<article class="card" data-glaze="${esc(g.id)}" style="cursor:pointer">
+          <button type="button" class="pic" aria-label="Open ${esc(g.name)}" style="border:0;padding:0;width:100%">${isPhoto(g.photo) ? `<img src="${esc(g.photo)}" alt="" loading="lazy">` : `<div class="nopic">${POT_ICON}</div>`}</button>
+          <div class="body">
+            <div class="name">${esc(g.name)}</div>
+            ${g.brand ? `<div class="meta">${esc(g.brand)}</div>` : ""}
+            ${g.notes ? `<div class="notes">${esc(g.notes)}</div>` : ""}
+            <div class="foot">
+              <div>${g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span> ` : ""}${g.example ? `<span class="chip ex">Example</span>` : ""}</div>
+              ${n ? `<button class="linkbtn" type="button" data-glaze-pieces="${esc(g.id)}">Used on ${plural(n, "piece")}</button>` : `<span class="meta">Not used yet</span>`}
+            </div>
+          </div>
+        </article>`;
+      }).join("")}</div>`
+        : `<section class="panel"><div class="empty">${state.glazes.length ? "No glazes match." : "No glazes yet. Tap “Add glaze” to save a photo of a glaze and what you think of it."}</div></section>`}
+      <section class="panel">
+        <h2>Clay bodies</h2>
+        <p class="hint" style="margin:-6px 0 12px;color:var(--muted);font-size:.88rem">The clays to pick from when adding a piece.</p>
+        ${clays().length ? `<div class="clay-list">${clays().map((c) => {
+          const n = state.pieces.filter((p) => p.clay === c).length;
+          return `<span class="clay-chip">${esc(c)}${n ? `<small class="num">${n}</small>` : ""}<button class="x" type="button" data-clay-remove="${esc(c)}" aria-label="Remove ${esc(c)}">×</button></span>`;
+        }).join("")}</div>` : ""}
+        <form class="inline-add" id="clay-add"><input id="clay-new" placeholder="e.g. Speckled Buff, B-Mix" autocomplete="off" aria-label="New clay body"><button class="btn small" type="submit">Add</button></form>
+      </section>`;
+  }
+
+  // ---------- Sheets ----------
+  function openSheet(html, onMount) {
+    const root = document.getElementById("sheet-root");
+    root.innerHTML = `<div class="overlay" id="overlay"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+    const ov = document.getElementById("overlay");
+    ov.addEventListener("click", (e) => { if (e.target === ov) closeSheet(); });
+    onMount && onMount(root.querySelector(".sheet"));
+    const first = root.querySelector("input:not(.vh), select, textarea"); if (first && window.innerWidth > 900) first.focus();
+  }
+  function closeSheet() { document.getElementById("sheet-root").innerHTML = ""; }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const v = document.querySelector(".viewer"); if (v) v.remove(); else closeSheet();
+  });
+
+  function armDelete(btn, label, fn) {
+    btn.addEventListener("click", async () => {
+      if (!btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "Tap again to delete"; setTimeout(() => { btn.classList.remove("armed"); btn.textContent = label; }, 3500); return; }
+      await fn();
+    });
+  }
+
+  // Full-screen photo, with arrows when there are several
+  function viewPhotos(photos, start = 0) {
+    let i = start;
+    const root = document.createElement("div");
+    root.className = "viewer"; root.setAttribute("role", "dialog"); root.setAttribute("aria-label", "Photo");
+    const draw = () => {
+      root.innerHTML = `<img src="${esc(photos[i])}" alt="">
+        <div class="bar">${photos.length > 1 ? `<button class="btn ghost small" data-v="-1" aria-label="Previous photo">‹</button><span class="num">${i + 1} / ${photos.length}</span><button class="btn ghost small" data-v="1" aria-label="Next photo">›</button>` : ""}
+        <button class="btn small" data-v="close">Close</button></div>`;
+    };
+    draw();
+    root.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-v]");
+      if (!b) { if (e.target === root) root.remove(); return; }
+      if (b.dataset.v === "close") return root.remove();
+      i = (i + Number(b.dataset.v) + photos.length) % photos.length; draw();
+    });
+    document.body.appendChild(root);
+  }
+
+  // Each photo must fit, and the whole record must stay under Firestore's 1 MB limit
+  const tooBig = (data) => JSON.stringify(data).length > 950000;
+
+  function pieceSheet(p) {
+    const isNew = !p;
+    p = p || { name: "", date: todayStr(), clay: "", glazes: [], notes: "", photos: [] };
+    let photos = (p.photos || []).filter(isPhoto);
+    // Each line is { glazeId, name, how }; glazeId "new" means she's typing a new glaze's name
+    let lines = (p.glazes || []).map((l) => ({ ...l }));
+    if (isNew && !lines.length) lines.push({ glazeId: "", name: "", how: "" });
+    const clayList = clays().slice();
+    if (p.clay && !clayList.includes(p.clay)) clayList.push(p.clay);
+
+    openSheet(`
+      <h3>${isNew ? "Add a piece" : "Edit piece"}</h3>
+      <form id="pform" class="fgrid" novalidate>
+        <div class="full">
+          <div class="sect-label">Photos</div>
+          <div class="photos" id="p-photos"></div>
+          <p class="hint" id="p-photo-hint" style="margin-top:6px"></p>
+          <input class="vh" type="file" id="p-file" accept="image/*" multiple tabindex="-1" aria-hidden="true">
+        </div>
+        <label class="f full">Name<input id="p-name" required value="${esc(p.name)}" placeholder="e.g. Blue serving bowl"></label>
+        <label class="f">Date finished<input id="p-date" type="date" value="${esc(p.date)}"></label>
+        <label class="f">Clay body<select id="p-clay">
+          <option value="">Not recorded</option>
+          ${clayList.map((c) => `<option ${c === p.clay ? "selected" : ""}>${esc(c)}</option>`).join("")}
+          <option value="__new">+ New clay…</option>
+        </select></label>
+        <label class="f full" id="p-clay-new-wrap" hidden>New clay name<input id="p-clay-new" placeholder="e.g. Speckled Buff" autocomplete="off"></label>
+        <div class="full">
+          <div class="sect-label">Glazes</div>
+          <div id="p-lines"></div>
+          <button class="btn ghost small" type="button" id="p-add-line">+ Add a glaze</button>
+        </div>
+        <label class="f full">Notes<textarea id="p-notes" rows="5" placeholder="How it fired, what worked, what to try next time">${esc(p.notes)}</textarea></label>
+      </form>
+      <div class="actions">
+        ${isNew ? "" : `<button class="btn danger" id="p-del" type="button">Delete</button>`}
+        <div class="right"><button class="btn ghost" type="button" id="p-cancel">Cancel</button><button class="btn" type="submit" form="pform" id="p-save">${isNew ? "Add piece" : "Save"}</button></div>
+      </div>`, (el) => {
+      const showPhotos = () => {
+        el.querySelector("#p-photos").innerHTML = photos.map((src, i) => `<div class="ph">
+            <button type="button" class="img" data-ph-view="${i}" aria-label="View photo ${i + 1}"><img src="${esc(src)}" alt=""></button>
+            ${i === 0 && photos.length > 1 ? `<span class="cover">Cover</span>` : ""}
+            <button type="button" class="x" data-ph-rm="${i}" aria-label="Remove photo ${i + 1}">×</button>
+          </div>`).join("")
+          + (photos.length < MAX_PHOTOS ? `<button type="button" class="ph-add" id="p-photo-add"><b>+</b>${photos.length ? "Add photo" : "Add photos"}</button>` : "");
+        el.querySelector("#p-photo-hint").textContent = photos.length > 1 ? "The first photo shows on the card. Tap a photo to see it big or make it the cover." : photos.length === MAX_PHOTOS ? "" : `Up to ${MAX_PHOTOS} photos.`;
+      };
+      showPhotos();
+      el.querySelector("#p-photos").addEventListener("click", (e) => {
+        if (e.target.closest("#p-photo-add")) return el.querySelector("#p-file").click();
+        const rm = e.target.closest("[data-ph-rm]");
+        if (rm) { photos.splice(Number(rm.dataset.phRm), 1); return showPhotos(); }
+        const vw = e.target.closest("[data-ph-view]");
+        if (vw) {
+          const i = Number(vw.dataset.phView);
+          if (i > 0) { photos.unshift(photos.splice(i, 1)[0]); showPhotos(); toast("That photo is now the cover"); }
+          else viewPhotos(photos, 0);
+        }
+      });
+      el.querySelector("#p-file").addEventListener("change", async (e) => {
+        const files = [...(e.target.files || [])]; e.target.value = "";
+        const room = MAX_PHOTOS - photos.length;
+        if (files.length > room) toast(`Only ${MAX_PHOTOS} photos per piece; added the first ${room}.`);
+        const add = el.querySelector("#p-photo-add"); if (add) { add.disabled = true; add.lastChild.textContent = "Loading…"; }
+        for (const f of files.slice(0, room)) {
+          try { photos.push(await shrinkPhoto(f)); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG."); }
+        }
+        showPhotos();
+      });
+
+      const clayNew = el.querySelector("#p-clay-new-wrap");
+      el.querySelector("#p-clay").addEventListener("change", (e) => {
+        clayNew.hidden = e.target.value !== "__new";
+        if (!clayNew.hidden) el.querySelector("#p-clay-new").focus();
+      });
+
+      // Glaze lines
+      const sortedGlazes = () => state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      const linesBox = el.querySelector("#p-lines");
+      const showLines = () => {
+        linesBox.innerHTML = lines.map((l, i) => {
+          const g = glazeById(l.glazeId);
+          const orphan = l.glazeId && l.glazeId !== "new" && !g; // glaze was deleted
+          return `<div class="gline" data-i="${i}">
+            <div class="gline-top">
+              ${g && isPhoto(g.photo) ? `<img class="thumb" src="${esc(g.photo)}" alt="">` : ""}
+              ${l.glazeId === "new"
+                ? `<input data-f="name" value="${esc(l.name)}" placeholder="New glaze name" autocomplete="off" aria-label="New glaze name">`
+                : `<select data-f="glazeId" aria-label="Glaze">
+                    <option value="">Pick a glaze…</option>
+                    ${orphan ? `<option value="${esc(l.glazeId)}" selected>${esc(l.name)} (deleted)</option>` : ""}
+                    ${sortedGlazes().map((x) => `<option value="${esc(x.id)}" ${x.id === l.glazeId ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
+                    <option value="new">+ New glaze…</option>
+                  </select>`}
+              <button type="button" class="l-remove" data-rm="${i}" aria-label="Remove this glaze">×</button>
+            </div>
+            <input data-f="how" value="${esc(l.how)}" placeholder="How: e.g. 2 dips, brushed 3 coats, rim only" aria-label="How it was applied">
+          </div>`;
+        }).join("") || `<p class="hint" style="margin-bottom:8px">No glazes on this piece yet.</p>`;
+      };
+      showLines();
+      linesBox.addEventListener("input", (e) => {
+        const box = e.target.closest(".gline"), f = e.target.dataset.f; if (!box || !f) return;
+        const l = lines[Number(box.dataset.i)];
+        if (f === "how") l.how = e.target.value;
+        if (f === "name") l.name = e.target.value;
+      });
+      linesBox.addEventListener("change", (e) => {
+        const box = e.target.closest(".gline"); if (!box || e.target.dataset.f !== "glazeId") return;
+        const l = lines[Number(box.dataset.i)];
+        l.glazeId = e.target.value; l.name = l.glazeId === "new" ? "" : (glazeById(l.glazeId) || {}).name || "";
+        showLines();
+        if (l.glazeId === "new") box.parentNode.children[Number(box.dataset.i)].querySelector("[data-f=name]").focus();
+      });
+      linesBox.addEventListener("click", (e) => {
+        const rm = e.target.closest("[data-rm]"); if (!rm) return;
+        lines.splice(Number(rm.dataset.rm), 1); showLines();
+      });
+      el.querySelector("#p-add-line").addEventListener("click", () => {
+        lines.push({ glazeId: "", name: "", how: "" }); showLines();
+        const sel = linesBox.querySelectorAll(".gline select"); if (sel.length) sel[sel.length - 1].focus();
+      });
+
+      el.querySelector("#p-cancel").addEventListener("click", closeSheet);
+      el.querySelector("#pform").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = el.querySelector("#p-name").value.trim();
+        if (!name) { el.querySelector("#p-name").focus(); toast("Give the piece a name."); return; }
+        let clay = el.querySelector("#p-clay").value;
+        if (clay === "__new") {
+          clay = el.querySelector("#p-clay-new").value.trim();
+          if (!clay) { el.querySelector("#p-clay-new").focus(); toast("Type the new clay's name."); return; }
+          const same = clays().find((c) => c.toLowerCase() === clay.toLowerCase());
+          if (same) clay = same; else api.saveSettings({ clays: [...clays(), clay] });
+        }
+        // New glazes typed here get added to the Glazes tab (or matched to one already there)
+        const out = [];
+        for (const l of lines) {
+          if (l.glazeId === "new") {
+            const nm = (l.name || "").trim(); if (!nm) continue;
+            let g = glazeByName(nm);
+            if (!g) { g = { id: uid(), name: nm, brand: "", rating: "", notes: "", createdAt: Date.now() }; const { id, ...data } = g; await api.save("glazes", id, data); }
+            out.push({ glazeId: g.id, name: g.name, how: (l.how || "").trim() });
+          } else if (l.glazeId) out.push({ glazeId: l.glazeId, name: lineName(l), how: (l.how || "").trim() });
+        }
+        const data = {
+          name,
+          date: el.querySelector("#p-date").value || "",
+          clay,
+          glazes: out,
+          notes: el.querySelector("#p-notes").value.trim(),
+          photos,
+          createdAt: p.createdAt || Date.now(),
+        };
+        if (p.example) data.example = true;
+        if (tooBig(data)) { toast("Too many photos to save together. Remove one and try again."); return; }
+        const ok = await api.save("pieces", p.id || uid(), data);
+        if (ok) { closeSheet(); toast(isNew ? "Piece added" : "Saved"); }
+      });
+      if (!isNew) armDelete(el.querySelector("#p-del"), "Delete", async () => {
+        if (await api.remove("pieces", p.id)) { closeSheet(); toast("Piece deleted"); }
+      });
+    });
+  }
+
+  function glazeSheet(g) {
+    const isNew = !g;
+    g = g || { name: "", brand: "", rating: "", notes: "" };
+    let photo = isPhoto(g.photo) ? g.photo : "", rating = g.rating || "";
+    const usedOn = isNew ? [] : piecesWithGlaze(g.id);
+    openSheet(`
+      <h3>${isNew ? "Add a glaze" : "Edit glaze"}</h3>
+      <form id="gform" class="fgrid" novalidate>
+        <div class="full photo-one">
+          <div id="g-photo-box"></div>
+          <div class="opts">
+            <button class="btn ghost small" type="button" id="g-photo-btn"></button>
+            <button class="linkbtn" type="button" id="g-photo-rm">Remove photo</button>
+            <input class="vh" type="file" id="g-file" accept="image/*" tabindex="-1" aria-hidden="true">
+          </div>
+        </div>
+        <label class="f full">Name<input id="g-name" required value="${esc(g.name)}" placeholder="e.g. Floating Blue"></label>
+        <label class="f full">Brand or recipe<input id="g-brand" value="${esc(g.brand)}" placeholder="Optional, e.g. Amaco Potter's Choice"></label>
+        <div class="full">
+          <div class="sect-label">Did you like it?</div>
+          <div class="pills" id="g-rating" role="radiogroup" aria-label="Did you like it?">
+            ${RATINGS.map(([k, label]) => `<button type="button" role="radio" data-r="${k}" aria-checked="${k === rating}">${label}</button>`).join("")}
+          </div>
+        </div>
+        <label class="f full">Notes<textarea id="g-notes" rows="5" placeholder="How many coats, how it breaks, runs or pools, what clay it looks best on">${esc(g.notes)}</textarea></label>
+        ${usedOn.length ? `<div class="full"><div class="sect-label">Used on</div><div class="gchips">${usedOn.sort(pieceSort).map((p) => `<span class="gchip">${isPhoto((p.photos || [])[0]) ? `<img src="${esc(p.photos[0])}" alt="">` : `<span class="dot"></span>`}<span>${esc(p.name)}</span></span>`).join("")}</div></div>` : ""}
+      </form>
+      <div class="actions">
+        ${isNew ? "" : `<button class="btn danger" id="g-del" type="button">Delete</button>`}
+        <div class="right"><button class="btn ghost" type="button" id="g-cancel">Cancel</button><button class="btn" type="submit" form="gform">${isNew ? "Add glaze" : "Save"}</button></div>
+      </div>`, (el) => {
+      const showPhoto = () => {
+        el.querySelector("#g-photo-box").innerHTML = photo
+          ? `<div class="ph"><button type="button" class="img" id="g-photo-view" aria-label="View photo"><img src="${esc(photo)}" alt="Photo of this glaze"></button></div>`
+          : `<button type="button" class="ph-add" id="g-photo-add"><b>+</b>Add photo</button>`;
+        el.querySelector("#g-photo-btn").textContent = photo ? "Change photo" : "Add photo";
+        el.querySelector("#g-photo-rm").hidden = !photo;
+      };
+      showPhoto();
+      const pick = () => el.querySelector("#g-file").click();
+      el.querySelector("#g-photo-btn").addEventListener("click", pick);
+      el.querySelector("#g-photo-box").addEventListener("click", (e) => {
+        if (e.target.closest("#g-photo-add")) pick();
+        if (e.target.closest("#g-photo-view")) viewPhotos([photo]);
+      });
+      el.querySelector("#g-photo-rm").addEventListener("click", () => { photo = ""; showPhoto(); });
+      el.querySelector("#g-file").addEventListener("change", async (e) => {
+        const f = e.target.files && e.target.files[0]; e.target.value = "";
+        if (!f) return;
+        const btn = el.querySelector("#g-photo-btn"); btn.disabled = true; btn.textContent = "Loading…";
+        try { photo = await shrinkPhoto(f); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG."); }
+        btn.disabled = false; showPhoto();
+      });
+      el.querySelector("#g-rating").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-r]"); if (!b) return;
+        rating = rating === b.dataset.r ? "" : b.dataset.r; // tap again to clear
+        el.querySelectorAll("#g-rating [data-r]").forEach((x) => x.setAttribute("aria-checked", String(x.dataset.r === rating)));
+      });
+      el.querySelector("#g-cancel").addEventListener("click", closeSheet);
+      el.querySelector("#gform").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = el.querySelector("#g-name").value.trim();
+        if (!name) { el.querySelector("#g-name").focus(); toast("Give the glaze a name."); return; }
+        const clash = glazeByName(name);
+        if (clash && clash.id !== g.id) { el.querySelector("#g-name").focus(); toast(`There's already a glaze called ${clash.name}.`); return; }
+        const data = { name, brand: el.querySelector("#g-brand").value.trim(), rating, notes: el.querySelector("#g-notes").value.trim(), createdAt: g.createdAt || Date.now() };
+        if (photo) data.photo = photo;
+        if (g.example) data.example = true;
+        const ok = await api.save("glazes", g.id || uid(), data);
+        if (ok) { closeSheet(); toast(isNew ? "Glaze added" : "Saved"); }
+      });
+      if (!isNew) armDelete(el.querySelector("#g-del"), "Delete", async () => {
+        if (await api.remove("glazes", g.id)) { closeSheet(); toast(usedOn.length ? "Glaze deleted. Pieces that used it keep its name." : "Glaze deleted"); }
+      });
+    });
+  }
+
+  async function clearExamples() {
+    const btn = document.getElementById("clear-ex"); if (btn) btn.disabled = true;
+    for (const p of state.pieces.filter((x) => x.example)) await api.remove("pieces", p.id);
+    for (const g of state.glazes.filter((x) => x.example)) await api.remove("glazes", g.id);
+    toast("Examples removed");
+  }
+
+  // ---------- Backups (photos aren't included; they stay in the app) ----------
+  const toCSV = (rows) => {
+    const q = (v) => { const s = String(v ?? ""); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    return rows.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
+  };
+  function downloadPieces() {
+    const rows = [["Name", "Date finished", "Clay body", "Glazes", "Notes", "Photos"]];
+    for (const p of state.pieces.slice().sort(pieceSort)) {
+      rows.push([p.name, p.date, p.clay, (p.glazes || []).map((l) => lineName(l) + (l.how ? ` (${l.how})` : "")).join("; "), p.notes, (p.photos || []).length]);
+    }
+    downloadFile(toCSV(rows), `pottery-pieces-${todayStr()}.csv`);
+  }
+  function downloadGlazes() {
+    const rows = [["Name", "Brand or recipe", "Liked it?", "Notes", "Pieces used on"]];
+    for (const g of state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
+      rows.push([g.name, g.brand, ratingLabel(g.rating), g.notes, piecesWithGlaze(g.id).length]);
+    }
+    downloadFile(toCSV(rows), `pottery-glazes-${todayStr()}.csv`);
+  }
+
+  // ---------- Events ----------
+  document.querySelector("nav.tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tab]"); if (!b) return;
+    state.tab = b.dataset.tab; render(); window.scrollTo(0, 0);
+  });
+  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet() : pieceSheet()));
+  const view = document.getElementById("view");
+  view.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("[data-act='clear-examples']")) return clearExamples();
+    if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
+    if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
+    const gp = t.closest("[data-glaze-pieces]");
+    if (gp) { state.filterGlaze = gp.dataset.glazePieces; state.search = ""; state.tab = "pieces"; render(); window.scrollTo(0, 0); return; }
+    const pc = t.closest("[data-piece]"); if (pc) return pieceSheet(pieceById(pc.dataset.piece));
+    const gl = t.closest("[data-glaze]"); if (gl) return glazeSheet(glazeById(gl.dataset.glaze));
+    const r = t.closest("[data-rating]"); if (r) { state.filterRating = r.dataset.rating; render(); return; }
+    const cr = t.closest("[data-clay-remove]");
+    if (cr) { api.saveSettings({ clays: clays().filter((c) => c !== cr.dataset.clayRemove) }); toast(`${cr.dataset.clayRemove} removed. Pieces made with it keep it.`); }
+  });
+  view.addEventListener("input", (e) => {
+    if (e.target.id === "q") { state.search = e.target.value; render(); }
+    if (e.target.id === "gq") { state.gsearch = e.target.value; render(); }
+  });
+  view.addEventListener("change", (e) => {
+    if (e.target.id === "filter-glaze") { state.filterGlaze = e.target.value; render(); }
+  });
+  view.addEventListener("submit", (e) => {
+    if (e.target.id !== "clay-add") return;
+    e.preventDefault();
+    const name = document.getElementById("clay-new").value.trim();
+    if (!name) return;
+    if (clays().some((c) => c.toLowerCase() === name.toLowerCase())) { toast(`${name} is already in the list.`); return; }
+    api.saveSettings({ clays: [...clays(), name] });
+  });
+
+  render();
+  connect();
+}
+</script>
+</body>
+</html>
