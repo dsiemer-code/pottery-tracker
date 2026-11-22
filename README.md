@@ -45,24 +45,27 @@ Open the GitHub Pages link on each device and sign in.
 
 ## Using it
 
-**Pieces** are finished pots. Each one has a name, the date it was finished, up to 4 photos, the clay body, the glazes used, and notes. For each glaze there's a **How** line for how it went on (e.g. "2 dips", "brushed 3 coats, rim only"). On a phone, **Add photos** offers the camera or the photo library. The first photo is the one on the card; tap another photo to make it the cover.
+**Pieces** are finished pots. Each one has a name, the date it was finished, up to 10 photos, the clay body, the glazes used, and notes. For each glaze there's a **How** line for how it went on (e.g. "2 dips", "brushed 3 coats, rim only"). On a phone, **Add photos** offers the camera or the photo library. On each photo, **★** makes it the cover (the one on the card), **↻** turns it a quarter turn, and **×** removes it. Tap a photo on a card to see it full screen; tap the rest of the card to edit.
 
-A glaze that isn't in the Glazes tab yet can be picked as **+ New glaze…** right on the piece; it's added to the Glazes tab when the piece is saved. The same works for **+ New clay…**.
+Glazes are picked from a list with their photos. A glaze that isn't in the Glazes tab yet can be typed in the list's search box and added as a new glaze; it's added to the Glazes tab when the piece is saved. **+ New clay…** works the same way for clay.
 
 Search finds pieces by name, notes, clay, glaze, or how a glaze was applied. **All glazes** narrows the list to pieces with one glaze.
 
 **Glazes** each have a photo (a test tile or a pot), a brand or recipe, **Did you like it?** (Love it / It's OK / Not for me) and notes. The buttons at the top show only the glazes she loved, or only the ones she didn't. **Used on N pieces** jumps to those pieces. Deleting a glaze doesn't change the pieces that used it; they keep its name.
 
+**Updates** reach her devices by themselves: when the app comes back on screen (and every 15 minutes while open) it checks for a newer version and reloads, but never while a popup is open or she's typing. The version under the title is the date and time it was published.
+
 **Clay bodies** are a short list at the bottom of the Glazes tab, used for the clay choice on each piece.
 
 ## What's stored
 ```
-users/{her-account-id}/pieces/{id}     name, date finished, clay, glazes (glaze, name, how), notes, photos
-users/{her-account-id}/glazes/{id}     name, brand or recipe, liked it, notes, photo
+users/{her-account-id}/pieces/{id}     name, date finished, clay, glazes (glaze, name, how), notes, photo ids
+users/{her-account-id}/glazes/{id}     name, brand or recipe, liked it, notes, photo id
+users/{her-account-id}/photos/{id}     one photo each
 users/{her-account-id}/settings/studio clay body list
 ```
 
-**Photos** are shrunk to about 900 px and stored with the piece or glaze in Firestore, so they need no paid Firebase Storage plan and work offline. A Firestore record holds up to 1 MB, which is why a piece has at most 4 photos.
+**Photos** are shrunk to about 900 px and kept in Firestore in their own records, so they need no paid Firebase Storage plan and work offline. Loading the app reads only the pieces and glazes; each photo is downloaded once per device when it's first shown, then read from the device's copy. A photo is never changed once saved (a rotated photo is saved as a new one), which is what makes that copy safe to reuse.
 
 The free plan allows 50,000 reads and 20,000 writes per day and 1 GB of storage. At about 150 KB per photo, that's room for several thousand photos.
 

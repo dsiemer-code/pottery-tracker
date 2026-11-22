@@ -71,6 +71,9 @@ header {
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 10px; }
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; margin: 0; display: flex; align-items: center; gap: 8px; }
 h1 svg { flex: none; }
+h1 .title-stack { display: flex; flex-direction: column; line-height: 1.15; }
+h1 .ver { font-family: var(--font-body); font-size: .68rem; font-weight: 500; color: var(--muted); }
+h1 .ver:empty { display: none; }
 .sync { font-size: .8rem; color: var(--muted); }
 nav.tabs { display: flex; gap: 6px; padding-block: 0 10px; }
 nav.tabs button {
@@ -91,34 +94,44 @@ main { padding-block: 18px 110px; display: grid; gap: 16px; }
 /* Toolbar */
 .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .toolbar .search { flex: 1 1 220px; }
-.toolbar select { flex: 1 1 160px; width: auto; }
 .pills { display: flex; gap: 6px; flex-wrap: wrap; }
 .pills button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px; font-weight: 600; color: var(--ink); min-height: 42px; }
 .pills button[aria-pressed="true"], .pills button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* A button that opens the glaze photo list, in place of a dropdown */
+.pick-btn { display: flex; align-items: center; gap: 10px; flex: 1 1 200px; min-width: 0; min-height: 46px; padding: 6px 12px 6px 6px; text-align: left;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; font-weight: 600; }
+.pick-btn .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-btn .nm.placeholder { color: var(--muted); font-weight: 500; }
+.pick-btn::after { content: ""; flex: none; width: 8px; height: 8px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg) translateY(-2px); margin-right: 4px; }
+.thumb, .gdot { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; flex: none; background: var(--accent-soft); display: inline-grid; place-items: center; color: var(--accent); font-weight: 800; }
 
 /* Cards */
 .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; min-width: 0;
-  border: 0; padding: 0; text-align: left; width: 100%; }
-.card:hover .name { color: var(--accent); }
-/* Glazes are a swatch library: two across on a phone, square photos */
-.cards.glz { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
-.cards.glz .pic { aspect-ratio: 1; }
-.cards.glz .body { padding: 10px 12px 12px; }
-.cards.glz .foot { flex-wrap: wrap; }
-.card .pic { position: relative; aspect-ratio: 4 / 3; background: var(--accent-soft); }
-.card .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card .pic { position: relative; aspect-ratio: 4 / 3; background: var(--accent-soft); border: 0; padding: 0; width: 100%; display: block; overflow: hidden; }
+button.pic { cursor: zoom-in; }
+/* Absolutely placed so a tall (portrait) photo can't stretch the card */
+.card .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .card .pic .nopic { position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent); opacity: .55; }
 .card .pic .more { position: absolute; right: 8px; bottom: 8px; background: rgba(20,14,10,.6); color: #fff; font-size: .75rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-.card .body { padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; }
+.card .body { padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; align-content: start; flex: 1;
+  border: 0; background: none; text-align: left; width: 100%; color: inherit; }
+button.body { cursor: pointer; }
+button.body:hover .name { color: var(--accent); }
 .card .name { font-family: var(--font-display); font-weight: 600; font-size: 1.12rem; line-height: 1.2; overflow-wrap: anywhere; }
 .card .meta { font-size: .86rem; color: var(--muted); }
 .card .notes { font-size: .9rem; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
-.card .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.card .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 0 14px 12px; }
+/* Glazes are a swatch library: two across on a phone, square photos */
+.cards.glz { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
+.cards.glz .pic { aspect-ratio: 1; }
+.cards.glz .body { padding: 10px 12px 8px; }
+.cards.glz .foot { padding: 0 12px 10px; }
 .gchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .gchip { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); max-width: 100%; }
 .gchip img, .gchip .dot { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line); }
 .gchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+button.gchip { border: 0; cursor: pointer; }
 
 .chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .chip.love { background: var(--good-soft); color: var(--good); }
@@ -153,6 +166,14 @@ label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: v
 .sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 92%; overflow: auto;
   border-radius: 20px 20px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 @media (min-width: 640px) { .sheet { border-radius: 20px; } }
+/* Big sheets nearly fill the screen, leaving little backdrop to tap by accident */
+.sheet.big { height: calc(100% - 10px - env(safe-area-inset-top, 0px)); max-height: none; }
+@media (min-width: 640px) { .sheet.big { max-width: 720px; height: auto; min-height: 80%; max-height: 94%; } }
+/* Tablets: nearly fill the screen too, since a stray tap on the backdrop closes it */
+@media (min-width: 640px) and (pointer: coarse) {
+  .sheet.big { width: calc(100% - 24px); max-width: 960px; min-height: 0; max-height: none;
+    height: calc(100% - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
 .sheet h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; margin: 0 0 14px; }
 .sheet .actions { display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; flex-wrap: wrap; }
 .sheet .actions .right { display: flex; gap: 10px; margin-left: auto; }
@@ -160,24 +181,44 @@ label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: v
 .sect-label { font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
 
 /* Photos in the edit sheet */
-.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.ph { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--line); }
-.ph > button.img { border: 0; padding: 0; width: 100%; height: 100%; display: block; background: none; }
-.ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ph .x { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(20,14,10,.65); color: #fff; font-size: 1.05rem; line-height: 1; }
-.ph .cover { position: absolute; left: 4px; bottom: 4px; background: var(--accent); color: var(--accent-ink); font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
-.ph-add { aspect-ratio: 1; border-radius: 12px; border: 2px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: .88rem; display: grid; place-content: center; gap: 2px; text-align: center; }
+.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+.ph { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--bg); }
+.ph > button.img { border: 0; padding: 0; width: 100%; height: 100%; display: block; background: none; cursor: zoom-in; }
+.ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph .loading { width: 100%; height: 100%; display: grid; place-items: center; color: var(--muted); font-size: .8rem; }
+.ph-acts { position: absolute; top: 6px; right: 6px; display: flex; gap: 6px; }
+.ph-acts button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #2B231E; font-size: 1.05rem; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.25); line-height: 1; padding: 0; }
+.ph .cover { position: absolute; left: 6px; bottom: 6px; background: var(--accent); color: var(--accent-ink); font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.ph-add { aspect-ratio: 1; border-radius: 12px; border: 2px dashed var(--line); background: none; color: var(--accent); font-weight: 600; font-size: .9rem; display: grid; place-content: center; gap: 2px; text-align: center; padding: 8px; }
 .ph-add b { font-size: 1.5rem; line-height: 1; }
 .photo-one { display: flex; gap: 14px; align-items: center; }
-.photo-one .ph, .photo-one .ph-add { width: 112px; flex: none; }
-.photo-one .opts { display: grid; gap: 6px; justify-items: start; }
+.photo-one .ph, .photo-one .ph-add { width: 128px; flex: none; }
+.photo-one .opts { display: grid; gap: 8px; justify-items: start; }
 
 /* Glaze lines on a piece */
 .gline { border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; margin-bottom: 8px; }
 .gline-top { display: flex; gap: 8px; align-items: center; }
-.gline-top select, .gline-top input { flex: 1; min-width: 0; }
-.gline-top .thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; background: var(--accent-soft); }
-.l-remove { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); font-size: 1.2rem; line-height: 1; flex: none; }
+.gline-top .pick-btn, .gline-top input { flex: 1; min-width: 0; }
+.l-remove { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); font-size: 1.2rem; line-height: 1; flex: none; }
+
+/* Glaze photo list (opens over everything, like a full-size dropdown) */
+.picker-ov { position: fixed; inset: 0; z-index: 25; background: rgba(24,16,10,.45); display: flex; align-items: flex-end; justify-content: center; }
+.picker { background: var(--surface); width: 100%; max-width: 560px; height: calc(100% - 10px - env(safe-area-inset-top, 0px)); border-radius: 20px 20px 0 0;
+  display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); }
+@media (min-width: 640px) { .picker-ov { align-items: center; } .picker { border-radius: 20px; max-width: 720px; height: 94%; } }
+@media (min-width: 640px) and (pointer: coarse) {
+  .picker { width: calc(100% - 24px); max-width: 960px; height: calc(100% - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
+.picker-head { display: flex; align-items: center; gap: 10px; padding: 18px 16px 10px; }
+.picker-head h3 { flex: 1; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; }
+.picker-search { padding: 0 16px 10px; }
+.picker-list { flex: 1; overflow: auto; padding: 0 8px 12px; }
+.pick-row { display: flex; width: 100%; align-items: center; gap: 12px; padding: 8px; min-height: 68px; border: 0; border-radius: 12px; background: none; text-align: left; }
+.pick-row:hover, .pick-row[aria-selected="true"] { background: var(--bg); }
+.pick-row .thumb, .pick-row .gdot { width: 52px; height: 52px; border-radius: 10px; font-size: 1.4rem; }
+.pick-row .nm { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pick-row .meta { display: block; font-size: .84rem; font-weight: 500; color: var(--muted); }
+.pick-none { margin: 8px; color: var(--muted); }
 
 /* Clay bodies list */
 .clay-list { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -186,17 +227,34 @@ label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: v
 .clay-chip .x { border: 0; background: none; width: 36px; height: 36px; font-size: 1.1rem; color: var(--muted); }
 .inline-add { display: flex; gap: 8px; }
 
+/* With the on-screen keyboard up (mainly iPad), popups fit the space above it; --kb-* are set by script */
+.overlay, .picker-ov { top: var(--kb-top, 0px); bottom: auto; height: var(--kb-h, 100%); }
+.kb-open .sheet, .kb-open .picker { padding-bottom: 12px; }
+
 /* Full-screen photo */
 .viewer { position: fixed; inset: 0; z-index: 50; background: rgba(10,7,5,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
-.viewer img { max-width: 100%; max-height: calc(100% - 70px); object-fit: contain; border-radius: 8px; }
+  padding: calc(56px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.viewer img { max-width: 100%; max-height: calc(100% - 80px); object-fit: contain; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.viewer .cap { color: #fff; font-weight: 600; text-align: center; }
 .viewer .bar { display: flex; gap: 10px; align-items: center; }
-.viewer .bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,.35); }
+.viewer .bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,.35); min-width: 48px; font-size: 1.2rem; }
 .viewer .bar span { color: #fff; font-weight: 600; min-width: 4ch; text-align: center; }
+.viewer .v-close { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; background: rgba(255,255,255,.92); color: #2B231E; }
+@media (prefers-reduced-motion: no-preference) { .viewer { animation: vfade .15s ease-out; } @keyframes vfade { from { opacity: 0; } } }
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(90px + env(safe-area-inset-bottom, 0px)); z-index: 60;
-  background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: .95rem; max-width: calc(100% - 32px); }
+  display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 32px);
+  background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 600; font-size: .95rem; box-shadow: 0 8px 28px rgba(0,0,0,.28); }
+/* Saves get a big green confirmation so it's obvious they worked; problems get amber, failures red */
+.toast.ok, .toast.warn, .toast.err { font-size: 1.08rem; padding: 14px 22px 14px 14px; border-radius: 18px; color: #fff; }
+.toast.ok { background: #2E8B57; }
+.toast.warn { background: #B8650F; }
+.toast.err { background: #C0392B; }
+.toast .ti { flex: none; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.95); display: grid; place-items: center; font-size: 1.05rem; font-weight: 800; }
+.toast.ok .ti { color: #2E8B57; } .toast.warn .ti { color: #B8650F; } .toast.err .ti { color: #C0392B; }
 @media (prefers-reduced-motion: no-preference) {
+  .toast:not([hidden]) { animation: toastIn .28s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes toastIn { from { transform: translateX(-50%) translateY(16px) scale(.9); opacity: 0; } }
   .sheet { animation: up .22s ease-out; }
   @keyframes up { from { transform: translateY(24px); opacity: .6; } }
 }
@@ -209,8 +267,19 @@ label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: v
     <div class="head-row">
       <h1>
         <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="var(--accent)"/><path d="M9.5 6.5h7M10.3 6.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="var(--surface)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.4 13.2c3.6 1.4 7.6 1.4 11.2 0" stroke="var(--surface)" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>
-        Pottery Tracker
+        <span class="title-stack">Pottery Tracker<span class="ver" id="app-ver"></span></span>
       </h1>
+      <script>
+        // Version = when this copy of the page was published (GitHub Pages sends it as Last-Modified), in local time.
+        // It changes by itself on every update, so there's nothing to bump by hand.
+        (function () {
+          var d = new Date(document.lastModified); if (isNaN(d)) return;
+          var p = function (n) { return String(n).padStart(2, "0"); };
+          var el = document.getElementById("app-ver");
+          el.textContent = "v" + d.getFullYear() + "." + p(d.getMonth() + 1) + "." + p(d.getDate()) + "." + p(d.getHours()) + p(d.getMinutes());
+          el.title = "Last updated " + d.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        })();
+      </script>
       <div class="head-right">
         <span class="sync" id="sync">Loading…</span>
         <button class="linkbtn" id="signout" type="button" hidden>Sign out</button>
@@ -240,7 +309,7 @@ label.f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: v
   <span id="fab-label">Add piece</span>
 </button>
 <div id="sheet-root"></div>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
 
 <script type="module">
 import { firebaseConfig } from "./firebase-config.js";
@@ -248,18 +317,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, deleteDoc, onSnapshot,
+  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromCache,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 {
   const RATINGS = [["love", "Love it"], ["ok", "It's OK"], ["no", "Not for me"]];
   const ratingLabel = (r) => (RATINGS.find(([k]) => k === r) || [])[1] || "";
-  const MAX_PHOTOS = 4;
+  const MAX_PHOTOS = 10;
+  // Typing boxes for names and notes: no contact autofill (Safari treats "Name" as a person's name), spell check on
+  const TEXT_ATTRS = `autocomplete="off" autocorrect="on" spellcheck="true"`;
 
   const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", offline: false };
 
   // Local-only fallback when saving isn't available (demo mode)
-  const local = { pieces: [], glazes: [], settings: {} };
+  const local = { pieces: [], glazes: [], settings: {}, photos: {} };
 
   function todayStr() {
     const d = new Date();
@@ -272,23 +343,34 @@ import {
   }
   function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-  const isPhoto = (s) => typeof s === "string" && /^data:image\//.test(s);
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-  // Photos are shrunk and stored with the record in Firestore (no paid Storage plan needed).
-  // A Firestore record holds at most 1 MB, so each photo is kept under about 180 KB.
+  // Photos are shrunk to about 900px and kept under about 180 KB each
+  async function canvasJpeg(c) {
+    let q = 0.82, out = c.toDataURL("image/jpeg", q);
+    while (out.length > 180000 && q > 0.4) { q -= 0.08; out = c.toDataURL("image/jpeg", q); }
+    return out;
+  }
+  const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
   async function shrinkPhoto(file, max = 900) {
     const url = URL.createObjectURL(file);
     try {
-      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const img = await loadImg(url);
       const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
       const w = Math.round(img.naturalWidth * s), h = Math.round(img.naturalHeight * s);
       const c = document.createElement("canvas"); c.width = w; c.height = h;
       const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
-      let q = 0.82, out = c.toDataURL("image/jpeg", q);
-      while (out.length > 180000 && q > 0.4) { q -= 0.08; out = c.toDataURL("image/jpeg", q); }
-      return out;
+      return canvasJpeg(c);
     } finally { URL.revokeObjectURL(url); }
+  }
+  // Turn a photo a quarter turn clockwise (phone photos often arrive sideways)
+  async function rotatePhoto(src) {
+    const img = await loadImg(src);
+    const w = img.naturalWidth || 320, h = img.naturalHeight || 240;
+    const c = document.createElement("canvas"); c.width = h; c.height = w;
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, h, w);
+    ctx.translate(h, 0); ctx.rotate(Math.PI / 2); ctx.drawImage(img, 0, 0, w, h);
+    return canvasJpeg(c);
   }
 
   function downloadFile(text, name) {
@@ -301,10 +383,14 @@ import {
   }
 
   let toastTimer;
-  function toast(msg) {
+  // kind: "ok" (something saved/done: green ✓), "warn" (something to fix: amber !), "err" (it failed: red ✕)
+  function toast(msg, kind = "") {
     const t = document.getElementById("toast");
-    t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2800);
+    t.className = "toast" + (kind ? " " + kind : "");
+    t.innerHTML = (kind ? `<span class="ti" aria-hidden="true">${kind === "ok" ? "✓" : kind === "err" ? "✕" : "!"}</span>` : "") + `<span>${esc(msg)}</span>`;
+    t.hidden = true; void t.offsetWidth; t.hidden = false; // restart the pop-in for back-to-back messages
+    if (kind === "ok" && navigator.vibrate) navigator.vibrate(30);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), kind === "err" ? 5000 : kind === "warn" ? 4000 : kind === "ok" ? 3200 : 2600);
   }
 
   // ---------- Data layer ----------
@@ -317,11 +403,11 @@ import {
     try {
       promiseFn().catch((e) => {
         console.error(e);
-        if (e && e.code === "permission-denied") toast("This account can't make changes.");
-        else toast("That didn't save. Try again in a moment.");
+        if (e && e.code === "permission-denied") toast("This account can't make changes.", "err");
+        else toast("That didn't save. Try again in a moment.", "err");
       });
       return true;
-    } catch (e) { console.error(e); toast("That didn't save. Try again in a moment."); return false; }
+    } catch (e) { console.error(e); toast("That didn't save. Try again in a moment.", "err"); return false; }
   }
   const ref = (col, id) => doc(fs, "users", uidPath, col, id);
   const api = {
@@ -339,6 +425,61 @@ import {
       return write(() => setDoc(doc(fs, "users", uidPath, "settings", "studio"), data, { merge: true }));
     },
   };
+
+  // ---------- Photos ----------
+  // Photos live in their own documents (users/{uid}/photos/{id} = { data }) so loading the pieces doesn't
+  // download every picture. Pieces keep photoIds, glazes a photoId. A photo never changes once written
+  // (a new or rotated picture gets a new id), so each device downloads it once and then reads it from its cache.
+  const photoCache = new Map(), photoWaits = new Map();
+  let photoRender = 0;
+  function loadPhoto(id) {
+    if (!id) return Promise.resolve("");
+    if (photoCache.has(id)) return Promise.resolve(photoCache.get(id));
+    if (!photoWaits.has(id)) photoWaits.set(id, (async () => {
+      let src = "";
+      if (!fs) src = local.photos[id] || "";
+      else {
+        const r = ref("photos", id);
+        try { const d = await getDocFromCache(r); src = (d.exists() && d.data().data) || ""; } catch (e) { /* not on this device yet */ }
+        if (!src) { try { const d = await getDoc(r); src = (d.exists() && d.data().data) || ""; } catch (e) { console.error(e); } }
+      }
+      if (src) photoCache.set(id, src);
+      photoWaits.delete(id);
+      return src;
+    })());
+    return photoWaits.get(id);
+  }
+  // The photo if it's already here; otherwise start fetching it and redraw when it arrives
+  function photoSrc(id) {
+    if (!id) return "";
+    if (photoCache.has(id)) return photoCache.get(id);
+    loadPhoto(id).then((src) => { if (src && !photoRender) photoRender = requestAnimationFrame(() => { photoRender = 0; render(); }); });
+    return "";
+  }
+  function storePhoto(src) {
+    const id = uid();
+    photoCache.set(id, src);
+    if (!fs) local.photos[id] = src;
+    else write(() => setDoc(ref("photos", id), { data: src, createdAt: Date.now() }));
+    return id;
+  }
+  function dropPhoto(id) {
+    if (!id) return;
+    photoCache.delete(id);
+    if (!fs) delete local.photos[id];
+    else write(() => deleteDoc(ref("photos", id)));
+  }
+  const pieceIds = (p) => (Array.isArray(p.photoIds) ? p.photoIds : []);
+  // Glaze photos show in chips and the picker everywhere, so fetch them in the background (free once cached)
+  let prefetched = "";
+  function prefetchGlazePhotos() {
+    const ids = state.glazes.map((g) => g.photoId).filter((id) => id && !photoCache.has(id));
+    const key = ids.join(",");
+    if (!ids.length || key === prefetched) return;
+    prefetched = key;
+    (async () => { for (const id of ids) await loadPhoto(id); render(); })();
+  }
+
   function syncLocal() {
     state.pieces = local.pieces.slice();
     state.glazes = local.glazes.slice();
@@ -368,7 +509,7 @@ import {
       mug: `<path d="M206 98c40 0 40 70 0 70" stroke="${glaze}" stroke-width="14" fill="none"/><rect x="100" y="78" width="112" height="136" rx="14" fill="${glaze}"/><rect x="100" y="180" width="112" height="34" rx="10" fill="${clay}"/><path d="M100 150c20 10 30-6 56 4s40 2 56-6v-20H100z" fill="${drip}" opacity=".55"/><ellipse cx="156" cy="80" rx="56" ry="8" fill="${drip}"/>`,
       tile: `<rect x="96" y="40" width="128" height="170" rx="10" fill="${clay}"/><path d="M96 50a10 10 0 0 1 10-10h108a10 10 0 0 1 10 10v104c-14 10-22-4-34 8s-20 2-30 12-26-4-36 4-16-6-28 2z" fill="${glaze}"/><path d="M118 70c30-8 60 4 84-6" stroke="${drip}" stroke-width="10" fill="none" stroke-linecap="round" opacity=".6"/>`,
     };
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"><rect width="320" height="240" fill="#EDE3D8"/><rect y="200" width="320" height="40" fill="#D9CBBC"/><ellipse cx="160" cy="216" rx="80" ry="8" fill="#000" opacity=".12"/>${pots[shape]}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="#EDE3D8"/><rect y="200" width="320" height="40" fill="#D9CBBC"/><ellipse cx="160" cy="216" rx="80" ry="8" fill="#000" opacity=".12"/>${pots[shape]}</svg>`;
     return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
   }
 
@@ -378,15 +519,16 @@ import {
       state.offline = true; state.loaded = { p: true, g: true };
       const d = (n) => { const x = new Date(); x.setDate(x.getDate() - n); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0"); };
       const now = Date.now();
+      const pic = (...a) => storePhoto(demoPot(...a));
       local.glazes = [
-        { id: "g1", name: "Floating Blue", brand: "Amaco Potter's Choice", rating: "love", photo: demoPot("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
-        { id: "g2", name: "Celadon", brand: "Mayco Stoneware", rating: "ok", photo: demoPot("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
-        { id: "g3", name: "Iron Red", brand: "", rating: "no", photo: demoPot("tile", "#7A2E1C", "#C9B49A", "#3A1A12"), notes: "Ran off the pot onto the kiln shelf. Never again on a vase.", createdAt: now - 1e8, example: true },
+        { id: "g1", name: "Floating Blue", brand: "Amaco Potter's Choice", rating: "love", photoId: pic("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
+        { id: "g2", name: "Celadon", brand: "Mayco Stoneware", rating: "ok", photoId: pic("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
+        { id: "g3", name: "Iron Red", brand: "", rating: "no", photoId: pic("tile", "#7A2E1C", "#C9B49A", "#3A1A12"), notes: "Ran off the pot onto the kiln shelf. Never again on a vase.", createdAt: now - 1e8, example: true },
       ];
       local.pieces = [
-        { id: "p1", name: "Blue serving bowl", date: d(4), clay: "Speckled Buff", glazes: [{ glazeId: "g1", name: "Floating Blue", how: "3 coats inside, 2 outside" }], notes: "Gift for Aunt Jo. The speckles came through the blue nicely.", photos: [demoPot("bowl", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 4e6, example: true },
-        { id: "p2", name: "Tall bud vase", date: d(25), clay: "B-Mix", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped, 4 seconds" }, { glazeId: "g3", name: "Iron Red", how: "Poured over the shoulder" }], notes: "Iron Red ran down and glued it to the shelf. Ground the foot.", photos: [demoPot("vase", "#9DBFA6", "#C9B49A", "#7A2E1C")], createdAt: now - 3e6, example: true },
-        { id: "p3", name: "Morning mug", date: d(60), clay: "Speckled Buff", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped" }, { glazeId: "g1", name: "Floating Blue", how: "Brushed on the rim" }], notes: "Handle a bit thick. Try pulling it thinner next time.", photos: [demoPot("mug", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 2e6, example: true },
+        { id: "p1", name: "Blue serving bowl", date: d(4), clay: "Speckled Buff", glazes: [{ glazeId: "g1", name: "Floating Blue", how: "3 coats inside, 2 outside" }], notes: "Gift for Aunt Jo. The speckles came through the blue nicely.", photoIds: [pic("bowl", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 4e6, example: true },
+        { id: "p2", name: "Tall bud vase", date: d(25), clay: "B-Mix", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped, 4 seconds" }, { glazeId: "g3", name: "Iron Red", how: "Poured over the shoulder" }], notes: "Iron Red ran down and glued it to the shelf. Ground the foot.", photoIds: [pic("vase", "#9DBFA6", "#C9B49A", "#7A2E1C"), pic("vase", "#7A2E1C", "#C9B49A", "#9DBFA6")], createdAt: now - 3e6, example: true },
+        { id: "p3", name: "Morning mug", date: d(60), clay: "Speckled Buff", glazes: [{ glazeId: "g2", name: "Celadon", how: "Dipped" }, { glazeId: "g1", name: "Floating Blue", how: "Brushed on the rim" }], notes: "Handle a bit thick. Try pulling it thinner next time.", photoIds: [pic("mug", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 2e6, example: true },
       ];
       local.settings = { clays: ["Speckled Buff", "B-Mix"] };
       setSync("Demo mode");
@@ -395,7 +537,7 @@ import {
     }
     const app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    try { fs = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+    try { fs = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager(), cacheSizeBytes: 300 * 1024 * 1024 }) }); }
     catch (e) { fs = initializeFirestore(app, {}); }
 
     onAuthStateChanged(auth, (user) => {
@@ -404,14 +546,14 @@ import {
       if (!user) { uidPath = null; setSync(""); showApp(false); return; }
       uidPath = user.uid;
       showApp(true); render();
-      const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load your pieces. Check the Firestore rules in the setup guide."); };
+      const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load your pieces. Check the Firestore rules in the setup guide.", "err"); };
       unsubs.push(onSnapshot(collection(fs, "users", uidPath, "pieces"), { includeMetadataChanges: true }, (snap) => {
         state.pieces = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.p = true; setSync(syncLabel(snap)); render();
       }, onErr));
       unsubs.push(onSnapshot(collection(fs, "users", uidPath, "glazes"), { includeMetadataChanges: true }, (snap) => {
         state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        state.loaded.g = true; setSync(syncLabel(snap)); render();
+        state.loaded.g = true; setSync(syncLabel(snap)); render(); prefetchGlazePhotos();
       }, onErr));
       unsubs.push(onSnapshot(doc(fs, "users", uidPath, "settings", "studio"), (snap) => {
         state.settings = snap.exists() ? snap.data() : {}; render();
@@ -443,8 +585,10 @@ import {
   const clays = () => (Array.isArray(state.settings.clays) ? state.settings.clays : []);
   const piecesWithGlaze = (gid) => state.pieces.filter((p) => (p.glazes || []).some((l) => l.glazeId === gid));
   const pieceSort = (a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0);
+  const glazeSort = (a, b) => (a.name || "").localeCompare(b.name || "");
   const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example);
-  const glazeThumb = (g, cls = "") => (g && isPhoto(g.photo) ? `<img class="${cls}" src="${esc(g.photo)}" alt="">` : `<span class="dot ${cls}"></span>`);
+  const glazePhoto = (g) => (g ? photoSrc(g.photoId) : "");
+  const glazeThumb = (g, cls = "thumb") => { const src = glazePhoto(g); return src ? `<img class="${cls}" src="${esc(src)}" alt="">` : `<span class="${cls === "thumb" ? "gdot" : cls || "dot"}" aria-hidden="true"></span>`; };
   const POT_ICON = `<svg width="56" height="56" viewBox="0 0 26 26" aria-hidden="true"><path d="M9.5 5.5h7M10.3 5.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
   // ---------- Render ----------
@@ -470,18 +614,17 @@ import {
   }
 
   function piecesHTML() {
-    const q = state.search.trim().toLowerCase(), fg = state.filterGlaze;
+    const q = state.search.trim().toLowerCase(), fg = glazeById(state.filterGlaze);
     const list = state.pieces
-      .filter((p) => !fg || (p.glazes || []).some((l) => l.glazeId === fg))
+      .filter((p) => !fg || (p.glazes || []).some((l) => l.glazeId === fg.id))
       .filter((p) => !q || [p.name, p.notes, p.clay, ...(p.glazes || []).flatMap((l) => [lineName(l), l.how])].some((s) => (s || "").toLowerCase().includes(q)))
       .sort(pieceSort);
-    const glazeOpts = state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-      .map((g) => `<option value="${esc(g.id)}" ${g.id === fg ? "selected" : ""}>${esc(g.name)}</option>`).join("");
     return `
       <section class="panel">
         <div class="toolbar">
-          <input class="search" id="q" type="search" placeholder="Search pieces, glazes, notes" value="${esc(state.search)}" aria-label="Search pieces">
-          ${state.glazes.length ? `<select id="filter-glaze" aria-label="Show pieces with glaze"><option value="">All glazes</option>${glazeOpts}</select>` : ""}
+          <input class="search" id="q" type="search" placeholder="Search pieces, glazes, notes" value="${esc(state.search)}" aria-label="Search pieces" autocomplete="off">
+          ${state.glazes.length ? `<button type="button" class="pick-btn" data-act="filter-glaze" aria-label="Show pieces with glaze: ${esc(fg ? fg.name : "All glazes")}">
+            ${fg ? glazeThumb(fg) : `<span class="gdot" aria-hidden="true">★</span>`}<span class="nm">${esc(fg ? fg.name : "All glazes")}</span></button>` : ""}
         </div>
         <div class="count num">${plural(list.length, "piece")}${fg || q ? ` of ${state.pieces.length}` : ""}${state.pieces.length ? ` · <button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
       </section>
@@ -490,19 +633,19 @@ import {
   }
 
   function pieceCard(p) {
-    const photos = (p.photos || []).filter(isPhoto);
+    const ids = pieceIds(p), cover = photoSrc(ids[0]);
     const lines = p.glazes || [];
-    return `<button class="card" type="button" data-piece="${esc(p.id)}" aria-label="Open ${esc(p.name)}">
-      <div class="pic">${photos.length ? `<img src="${esc(photos[0])}" alt="" loading="lazy">` : `<div class="nopic">${POT_ICON}</div>`}
-        ${photos.length > 1 ? `<span class="more">${photos.length} photos</span>` : ""}</div>
-      <div class="body">
-        <div class="name">${esc(p.name)}</div>
-        <div class="meta">${[dateLabel(p.date), p.clay].filter(Boolean).map(esc).join(" · ")}</div>
-        ${lines.length ? `<div class="gchips">${lines.map((l) => `<span class="gchip">${glazeThumb(glazeById(l.glazeId))}<span>${esc(lineName(l))}</span></span>`).join("")}</div>` : ""}
-        ${p.notes ? `<div class="notes">${esc(p.notes)}</div>` : ""}
-        ${p.example ? `<div><span class="chip ex">Example</span></div>` : ""}
-      </div>
-    </button>`;
+    return `<article class="card">
+      ${cover ? `<button type="button" class="pic" data-zoom-piece="${esc(p.id)}" aria-label="See photos of ${esc(p.name)}"><img src="${esc(cover)}" alt="" loading="lazy">${ids.length > 1 ? `<span class="more">${ids.length} photos</span>` : ""}</button>`
+        : `<div class="pic"><div class="nopic">${POT_ICON}</div></div>`}
+      <button type="button" class="body" data-piece="${esc(p.id)}" aria-label="Open ${esc(p.name)}">
+        <span class="name">${esc(p.name)}</span>
+        <span class="meta">${[dateLabel(p.date), p.clay].filter(Boolean).map(esc).join(" · ")}</span>
+        ${lines.length ? `<span class="gchips">${lines.map((l) => `<span class="gchip">${glazeThumb(glazeById(l.glazeId), "")}<span>${esc(lineName(l))}</span></span>`).join("")}</span>` : ""}
+        ${p.notes ? `<span class="notes">${esc(p.notes)}</span>` : ""}
+        ${p.example ? `<span><span class="chip ex">Example</span></span>` : ""}
+      </button>
+    </article>`;
   }
 
   function glazesHTML() {
@@ -510,13 +653,13 @@ import {
     const list = state.glazes
       .filter((g) => !fr || g.rating === fr)
       .filter((g) => !q || [g.name, g.brand, g.notes].some((s) => (s || "").toLowerCase().includes(q)))
-      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      .sort(glazeSort);
     const used = new Map();
     for (const p of state.pieces) for (const l of p.glazes || []) used.set(l.glazeId, (used.get(l.glazeId) || 0) + 1);
     return `
       <section class="panel">
         <div class="toolbar">
-          <input class="search" id="gq" type="search" placeholder="Search glazes" value="${esc(state.gsearch)}" aria-label="Search glazes">
+          <input class="search" id="gq" type="search" placeholder="Search glazes" value="${esc(state.gsearch)}" aria-label="Search glazes" autocomplete="off">
         </div>
         <div class="pills" style="margin-top:10px" role="group" aria-label="Show glazes">
           <button type="button" data-rating="" aria-pressed="${!fr}">All</button>
@@ -525,45 +668,47 @@ import {
         <div class="count num">${plural(list.length, "glaze")}${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards glz">${list.map((g) => {
-        const n = used.get(g.id) || 0;
-        return `<article class="card" data-glaze="${esc(g.id)}" style="cursor:pointer">
-          <button type="button" class="pic" aria-label="Open ${esc(g.name)}" style="border:0;padding:0;width:100%">${isPhoto(g.photo) ? `<img src="${esc(g.photo)}" alt="" loading="lazy">` : `<div class="nopic">${POT_ICON}</div>`}</button>
-          <div class="body">
-            <div class="name">${esc(g.name)}</div>
-            ${g.brand ? `<div class="meta">${esc(g.brand)}</div>` : ""}
-            ${g.notes ? `<div class="notes">${esc(g.notes)}</div>` : ""}
-            <div class="foot">
-              <div>${g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span> ` : ""}${g.example ? `<span class="chip ex">Example</span>` : ""}</div>
-              ${n ? `<button class="linkbtn" type="button" data-glaze-pieces="${esc(g.id)}">Used on ${plural(n, "piece")}</button>` : `<span class="meta">Not used yet</span>`}
-            </div>
-          </div>
+        const n = used.get(g.id) || 0, src = glazePhoto(g);
+        return `<article class="card">
+          ${src ? `<button type="button" class="pic" data-zoom-glaze="${esc(g.id)}" aria-label="See ${esc(g.name)} bigger"><img src="${esc(src)}" alt="" loading="lazy"></button>`
+            : `<div class="pic"><div class="nopic">${POT_ICON}</div></div>`}
+          <button type="button" class="body" data-glaze="${esc(g.id)}" aria-label="Open ${esc(g.name)}">
+            <span class="name">${esc(g.name)}</span>
+            ${g.brand ? `<span class="meta">${esc(g.brand)}</span>` : ""}
+            ${g.notes ? `<span class="notes">${esc(g.notes)}</span>` : ""}
+            ${g.rating || g.example ? `<span>${g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span> ` : ""}${g.example ? `<span class="chip ex">Example</span>` : ""}</span>` : ""}
+          </button>
+          <div class="foot">${n ? `<button class="linkbtn" type="button" data-glaze-pieces="${esc(g.id)}">Used on ${plural(n, "piece")}</button>` : `<span class="meta">Not used yet</span>`}</div>
         </article>`;
       }).join("")}</div>`
         : `<section class="panel"><div class="empty">${state.glazes.length ? "No glazes match." : "No glazes yet. Tap “Add glaze” to save a photo of a glaze and what you think of it."}</div></section>`}
       <section class="panel">
         <h2>Clay bodies</h2>
-        <p class="hint" style="margin:-6px 0 12px;color:var(--muted);font-size:.88rem">The clays to pick from when adding a piece.</p>
+        <p style="margin:-6px 0 12px;color:var(--muted);font-size:.88rem">The clays to pick from when adding a piece.</p>
         ${clays().length ? `<div class="clay-list">${clays().map((c) => {
           const n = state.pieces.filter((p) => p.clay === c).length;
           return `<span class="clay-chip">${esc(c)}${n ? `<small class="num">${n}</small>` : ""}<button class="x" type="button" data-clay-remove="${esc(c)}" aria-label="Remove ${esc(c)}">×</button></span>`;
         }).join("")}</div>` : ""}
-        <form class="inline-add" id="clay-add"><input id="clay-new" placeholder="e.g. Speckled Buff, B-Mix" autocomplete="off" aria-label="New clay body"><button class="btn small" type="submit">Add</button></form>
+        <form class="inline-add" id="clay-add"><input id="clay-new" placeholder="e.g. Speckled Buff, B-Mix" ${TEXT_ATTRS} autocapitalize="words" aria-label="New clay body"><button class="btn small" type="submit">Add</button></form>
       </section>`;
   }
 
   // ---------- Sheets ----------
-  function openSheet(html, onMount) {
+  function openSheet(html, onMount, { big = false } = {}) {
     const root = document.getElementById("sheet-root");
-    root.innerHTML = `<div class="overlay" id="overlay"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+    root.innerHTML = `<div class="overlay" id="overlay"><div class="sheet${big ? " big" : ""}" role="dialog" aria-modal="true">${html}</div></div>`;
     const ov = document.getElementById("overlay");
     ov.addEventListener("click", (e) => { if (e.target === ov) closeSheet(); });
     onMount && onMount(root.querySelector(".sheet"));
-    const first = root.querySelector("input:not(.vh), select, textarea"); if (first && window.innerWidth > 900) first.focus();
+    // Only jump into the first box with a mouse and keyboard; on a phone or iPad the keyboard would cover the popup
+    const first = root.querySelector("input:not(.vh), textarea"); if (first && matchMedia("(pointer: fine)").matches) first.focus();
   }
   function closeSheet() { document.getElementById("sheet-root").innerHTML = ""; }
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    const v = document.querySelector(".viewer"); if (v) v.remove(); else closeSheet();
+    const v = document.querySelector(".viewer"); if (v) { v.remove(); return; }
+    const picker = document.querySelector(".picker-ov");
+    if (picker) picker.remove(); else closeSheet();
   });
 
   function armDelete(btn, label, fn) {
@@ -573,15 +718,16 @@ import {
     });
   }
 
-  // Full-screen photo, with arrows when there are several
-  function viewPhotos(photos, start = 0) {
-    let i = start;
+  // Full-screen photo, with arrows when there are several. Tap the dark area to close.
+  function viewPhotos(photos, start = 0, caption = "") {
+    photos = photos.filter(Boolean); if (!photos.length) return;
+    let i = Math.min(start, photos.length - 1);
     const root = document.createElement("div");
-    root.className = "viewer"; root.setAttribute("role", "dialog"); root.setAttribute("aria-label", "Photo");
+    root.className = "viewer"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", caption || "Photo");
     const draw = () => {
-      root.innerHTML = `<img src="${esc(photos[i])}" alt="">
-        <div class="bar">${photos.length > 1 ? `<button class="btn ghost small" data-v="-1" aria-label="Previous photo">‹</button><span class="num">${i + 1} / ${photos.length}</span><button class="btn ghost small" data-v="1" aria-label="Next photo">›</button>` : ""}
-        <button class="btn small" data-v="close">Close</button></div>`;
+      root.innerHTML = `<button class="btn small v-close" data-v="close">Close</button><img src="${esc(photos[i])}" alt="${esc(caption)}">
+        ${caption ? `<div class="cap">${esc(caption)}</div>` : ""}
+        ${photos.length > 1 ? `<div class="bar"><button class="btn ghost small" data-v="-1" aria-label="Previous photo">‹</button><span class="num">${i + 1} / ${photos.length}</span><button class="btn ghost small" data-v="1" aria-label="Next photo">›</button></div>` : ""}`;
     };
     draw();
     root.addEventListener("click", (e) => {
@@ -591,15 +737,67 @@ import {
       i = (i + Number(b.dataset.v) + photos.length) % photos.length; draw();
     });
     document.body.appendChild(root);
+    root.querySelector(".v-close").focus();
   }
 
-  // Each photo must fit, and the whole record must stay under Firestore's 1 MB limit
-  const tooBig = (data) => JSON.stringify(data).length > 950000;
+  // Searchable glaze list with photos, like a full-size dropdown. onPick(id, typedName): id is a glaze id,
+  // "" for All glazes (filter mode) or "new" for a glaze that isn't in the Glazes tab yet.
+  function pickGlaze(currentId, onPick, { filter = false, skip = [] } = {}) {
+    const glazes = state.glazes.filter((g) => !skip.includes(g.id) || g.id === currentId).sort(glazeSort);
+    const title = filter ? "Show pieces with" : "Choose a glaze";
+    const ov = document.createElement("div");
+    ov.className = "picker-ov";
+    ov.innerHTML = `<div class="picker" role="dialog" aria-modal="true" aria-label="${title}">
+      <div class="picker-head"><h3>${title}</h3><button type="button" class="btn ghost small" data-close>Close</button></div>
+      <div class="picker-search"><input type="search" placeholder="Search ${plural(glazes.length, "glaze")}" aria-label="Search glazes" ${TEXT_ATTRS} autocapitalize="words"></div>
+      <div class="picker-list"></div>
+    </div>`;
+    document.getElementById("sheet-root").appendChild(ov);
+    const list = ov.querySelector(".picker-list"), q = ov.querySelector("input");
+    const used = (g) => piecesWithGlaze(g.id).length;
+    const row = (g) => `<button type="button" class="pick-row" data-id="${esc(g.id)}" aria-selected="${g.id === currentId}">${glazeThumb(g)}
+      <span class="nm">${esc(g.name)}<span class="meta">${[g.brand, ratingLabel(g.rating), used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span></span></button>`;
+    const allRow = () => `<button type="button" class="pick-row" data-id="" aria-selected="${!currentId}"><span class="gdot" aria-hidden="true">★</span>
+      <span class="nm">All glazes<span class="meta">Show every piece</span></span></button>`;
+    const newRow = (name) => `<button type="button" class="pick-row" data-id="new" data-name="${esc(name)}"><span class="gdot" aria-hidden="true">+</span>
+      <span class="nm">${name ? `Add “${esc(name)}” as a new glaze` : "New glaze (not in Glazes yet)"}<span class="meta">It's added to the Glazes tab when you save the piece</span></span></button>`;
+    const draw = () => {
+      const typed = q.value.trim(), t = typed.toLowerCase();
+      const hits = t ? glazes.filter((g) => [g.name, g.brand].some((s) => (s || "").toLowerCase().includes(t))) : glazes;
+      const exact = state.glazes.some((g) => (g.name || "").trim().toLowerCase() === t);
+      list.innerHTML = (filter ? (typed ? "" : allRow()) : exact ? "" : newRow(typed))
+        + hits.map(row).join("")
+        + (hits.length ? "" : `<p class="pick-none">No glaze matches “${esc(typed)}”.</p>`);
+    };
+    draw();
+    Promise.all(glazes.filter((g) => g.photoId && !photoCache.has(g.photoId)).map((g) => loadPhoto(g.photoId))).then((got) => { if (got.length && ov.isConnected) draw(); });
+    q.addEventListener("input", draw);
+    ov.addEventListener("click", (e) => {
+      if (e.target === ov || e.target.closest("[data-close]")) return ov.remove();
+      const b = e.target.closest(".pick-row"); if (!b) return;
+      ov.remove(); onPick(b.dataset.id, b.dataset.name || "");
+    });
+    const cur = list.querySelector('[aria-selected="true"]'); if (cur) cur.scrollIntoView({ block: "center" });
+    if (matchMedia("(pointer: fine)").matches) q.focus();
+  }
+
+  // Photo tiles in a popup. Each item is { id, src }: id is the stored photo, "" for one not saved yet.
+  function photoTile(ph, i, { cover = false, label = "photo" } = {}) {
+    return `<div class="ph">
+      ${ph.src ? `<button type="button" class="img" data-ph-view="${i}" aria-label="See ${label} ${i + 1} bigger"><img src="${esc(ph.src)}" alt=""></button>` : `<div class="loading">Loading…</div>`}
+      ${cover ? `<span class="cover">Cover</span>` : ""}
+      <div class="ph-acts">
+        ${i > 0 ? `<button type="button" data-ph-cover="${i}" aria-label="Make this the cover photo" title="Make cover">★</button>` : ""}
+        ${ph.src ? `<button type="button" data-ph-rot="${i}" aria-label="Rotate ${label} ${i + 1} a quarter turn" title="Rotate">↻</button>` : ""}
+        <button type="button" data-ph-rm="${i}" aria-label="Remove ${label} ${i + 1}" title="Remove">×</button>
+      </div>
+    </div>`;
+  }
 
   function pieceSheet(p) {
     const isNew = !p;
-    p = p || { name: "", date: todayStr(), clay: "", glazes: [], notes: "", photos: [] };
-    let photos = (p.photos || []).filter(isPhoto);
+    p = p || { name: "", date: todayStr(), clay: "", glazes: [], notes: "" };
+    let photos = pieceIds(p).map((id) => ({ id, src: photoCache.get(id) || "" }));
     // Each line is { glazeId, name, how }; glazeId "new" means she's typing a new glaze's name
     let lines = (p.glazes || []).map((l) => ({ ...l }));
     if (isNew && !lines.length) lines.push({ glazeId: "", name: "", how: "" });
@@ -615,53 +813,52 @@ import {
           <p class="hint" id="p-photo-hint" style="margin-top:6px"></p>
           <input class="vh" type="file" id="p-file" accept="image/*" multiple tabindex="-1" aria-hidden="true">
         </div>
-        <label class="f full">Name<input id="p-name" required value="${esc(p.name)}" placeholder="e.g. Blue serving bowl"></label>
+        <label class="f full">Piece<input id="p-title" required value="${esc(p.name)}" placeholder="e.g. Blue serving bowl" ${TEXT_ATTRS} autocapitalize="sentences"></label>
         <label class="f">Date finished<input id="p-date" type="date" value="${esc(p.date)}"></label>
         <label class="f">Clay body<select id="p-clay">
           <option value="">Not recorded</option>
           ${clayList.map((c) => `<option ${c === p.clay ? "selected" : ""}>${esc(c)}</option>`).join("")}
           <option value="__new">+ New clay…</option>
         </select></label>
-        <label class="f full" id="p-clay-new-wrap" hidden>New clay name<input id="p-clay-new" placeholder="e.g. Speckled Buff" autocomplete="off"></label>
+        <label class="f full" id="p-clay-new-wrap" hidden>What's the new clay called?<input id="p-clay-new" placeholder="e.g. Speckled Buff" ${TEXT_ATTRS} autocapitalize="words"></label>
         <div class="full">
           <div class="sect-label">Glazes</div>
           <div id="p-lines"></div>
           <button class="btn ghost small" type="button" id="p-add-line">+ Add a glaze</button>
         </div>
-        <label class="f full">Notes<textarea id="p-notes" rows="5" placeholder="How it fired, what worked, what to try next time">${esc(p.notes)}</textarea></label>
+        <label class="f full">Notes<textarea id="p-notes" rows="5" placeholder="How it fired, what worked, what to try next time" ${TEXT_ATTRS} autocapitalize="sentences">${esc(p.notes)}</textarea></label>
       </form>
       <div class="actions">
         ${isNew ? "" : `<button class="btn danger" id="p-del" type="button">Delete</button>`}
         <div class="right"><button class="btn ghost" type="button" id="p-cancel">Cancel</button><button class="btn" type="submit" form="pform" id="p-save">${isNew ? "Add piece" : "Save"}</button></div>
       </div>`, (el) => {
+      const box = el.querySelector("#p-photos");
       const showPhotos = () => {
-        el.querySelector("#p-photos").innerHTML = photos.map((src, i) => `<div class="ph">
-            <button type="button" class="img" data-ph-view="${i}" aria-label="View photo ${i + 1}"><img src="${esc(src)}" alt=""></button>
-            ${i === 0 && photos.length > 1 ? `<span class="cover">Cover</span>` : ""}
-            <button type="button" class="x" data-ph-rm="${i}" aria-label="Remove photo ${i + 1}">×</button>
-          </div>`).join("")
+        box.innerHTML = photos.map((ph, i) => photoTile(ph, i, { cover: i === 0 && photos.length > 1 })).join("")
           + (photos.length < MAX_PHOTOS ? `<button type="button" class="ph-add" id="p-photo-add"><b>+</b>${photos.length ? "Add photo" : "Add photos"}</button>` : "");
-        el.querySelector("#p-photo-hint").textContent = photos.length > 1 ? "The first photo shows on the card. Tap a photo to see it big or make it the cover." : photos.length === MAX_PHOTOS ? "" : `Up to ${MAX_PHOTOS} photos.`;
+        el.querySelector("#p-photo-hint").textContent = photos.length > 1 ? "The cover shows on the card. ★ makes a photo the cover, ↻ turns it." : photos.length ? "↻ turns a photo that came in sideways." : "";
       };
       showPhotos();
-      el.querySelector("#p-photos").addEventListener("click", (e) => {
+      // Photos already saved may not be on this device yet
+      photos.forEach((ph) => { if (!ph.src) loadPhoto(ph.id).then((src) => { if (src) { ph.src = src; if (box.isConnected) showPhotos(); } }); });
+      box.addEventListener("click", async (e) => {
         if (e.target.closest("#p-photo-add")) return el.querySelector("#p-file").click();
-        const rm = e.target.closest("[data-ph-rm]");
-        if (rm) { photos.splice(Number(rm.dataset.phRm), 1); return showPhotos(); }
-        const vw = e.target.closest("[data-ph-view]");
-        if (vw) {
-          const i = Number(vw.dataset.phView);
-          if (i > 0) { photos.unshift(photos.splice(i, 1)[0]); showPhotos(); toast("That photo is now the cover"); }
-          else viewPhotos(photos, 0);
-        }
+        const b = e.target.closest("[data-ph-view],[data-ph-rm],[data-ph-rot],[data-ph-cover]"); if (!b) return;
+        const { phView, phRm, phRot, phCover } = b.dataset;
+        if (phView !== undefined) return viewPhotos(photos.map((x) => x.src), Number(phView), el.querySelector("#p-title").value.trim());
+        if (phRm !== undefined) { photos.splice(Number(phRm), 1); return showPhotos(); }
+        if (phCover !== undefined) { photos.unshift(photos.splice(Number(phCover), 1)[0]); showPhotos(); return toast("That photo is now the cover"); }
+        const ph = photos[Number(phRot)]; b.disabled = true;
+        try { ph.src = await rotatePhoto(ph.src); ph.id = ""; } catch (ex) { console.error(ex); toast("Couldn't turn that photo.", "err"); }
+        showPhotos();
       });
       el.querySelector("#p-file").addEventListener("change", async (e) => {
         const files = [...(e.target.files || [])]; e.target.value = "";
         const room = MAX_PHOTOS - photos.length;
-        if (files.length > room) toast(`Only ${MAX_PHOTOS} photos per piece; added the first ${room}.`);
+        if (files.length > room) toast(`Up to ${MAX_PHOTOS} photos per piece; added the first ${room}.`, "warn");
         const add = el.querySelector("#p-photo-add"); if (add) { add.disabled = true; add.lastChild.textContent = "Loading…"; }
         for (const f of files.slice(0, room)) {
-          try { photos.push(await shrinkPhoto(f)); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG."); }
+          try { photos.push({ id: "", src: await shrinkPhoto(f) }); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
         }
         showPhotos();
       });
@@ -672,8 +869,7 @@ import {
         if (!clayNew.hidden) el.querySelector("#p-clay-new").focus();
       });
 
-      // Glaze lines
-      const sortedGlazes = () => state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      // Glaze lines: a button showing the glaze's photo opens the glaze list
       const linesBox = el.querySelector("#p-lines");
       const showLines = () => {
         linesBox.innerHTML = lines.map((l, i) => {
@@ -681,53 +877,50 @@ import {
           const orphan = l.glazeId && l.glazeId !== "new" && !g; // glaze was deleted
           return `<div class="gline" data-i="${i}">
             <div class="gline-top">
-              ${g && isPhoto(g.photo) ? `<img class="thumb" src="${esc(g.photo)}" alt="">` : ""}
               ${l.glazeId === "new"
-                ? `<input data-f="name" value="${esc(l.name)}" placeholder="New glaze name" autocomplete="off" aria-label="New glaze name">`
-                : `<select data-f="glazeId" aria-label="Glaze">
-                    <option value="">Pick a glaze…</option>
-                    ${orphan ? `<option value="${esc(l.glazeId)}" selected>${esc(l.name)} (deleted)</option>` : ""}
-                    ${sortedGlazes().map((x) => `<option value="${esc(x.id)}" ${x.id === l.glazeId ? "selected" : ""}>${esc(x.name)}</option>`).join("")}
-                    <option value="new">+ New glaze…</option>
-                  </select>`}
+                ? `<input data-f="name" value="${esc(l.name)}" placeholder="New glaze name" ${TEXT_ATTRS} autocapitalize="words" aria-label="New glaze name">`
+                : `<button type="button" class="pick-btn" data-pick="${i}" aria-label="Glaze: ${esc(g ? g.name : orphan ? l.name : "pick a glaze")}">
+                    ${g ? glazeThumb(g) : `<span class="gdot" aria-hidden="true"></span>`}
+                    <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? g.name : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span></button>`}
               <button type="button" class="l-remove" data-rm="${i}" aria-label="Remove this glaze">×</button>
             </div>
-            <input data-f="how" value="${esc(l.how)}" placeholder="How: e.g. 2 dips, brushed 3 coats, rim only" aria-label="How it was applied">
+            <input data-f="how" value="${esc(l.how)}" placeholder="How: e.g. 2 dips, brushed 3 coats, rim only" ${TEXT_ATTRS} autocapitalize="sentences" aria-label="How it was applied">
           </div>`;
         }).join("") || `<p class="hint" style="margin-bottom:8px">No glazes on this piece yet.</p>`;
       };
       showLines();
+      const chooseFor = (i) => pickGlaze(lines[i].glazeId, (id, typed) => {
+        const l = lines[i];
+        l.glazeId = id; l.name = id === "new" ? typed : (glazeById(id) || {}).name || "";
+        showLines();
+        const row = linesBox.children[i];
+        if (row) row.querySelector(id === "new" && !typed ? "[data-f=name]" : "[data-f=how]").focus();
+      }, { skip: lines.map((l) => l.glazeId) });
       linesBox.addEventListener("input", (e) => {
-        const box = e.target.closest(".gline"), f = e.target.dataset.f; if (!box || !f) return;
-        const l = lines[Number(box.dataset.i)];
+        const row = e.target.closest(".gline"), f = e.target.dataset.f; if (!row || !f) return;
+        const l = lines[Number(row.dataset.i)];
         if (f === "how") l.how = e.target.value;
         if (f === "name") l.name = e.target.value;
       });
-      linesBox.addEventListener("change", (e) => {
-        const box = e.target.closest(".gline"); if (!box || e.target.dataset.f !== "glazeId") return;
-        const l = lines[Number(box.dataset.i)];
-        l.glazeId = e.target.value; l.name = l.glazeId === "new" ? "" : (glazeById(l.glazeId) || {}).name || "";
-        showLines();
-        if (l.glazeId === "new") box.parentNode.children[Number(box.dataset.i)].querySelector("[data-f=name]").focus();
-      });
       linesBox.addEventListener("click", (e) => {
+        const pk = e.target.closest("[data-pick]"); if (pk) return chooseFor(Number(pk.dataset.pick));
         const rm = e.target.closest("[data-rm]"); if (!rm) return;
         lines.splice(Number(rm.dataset.rm), 1); showLines();
       });
       el.querySelector("#p-add-line").addEventListener("click", () => {
-        lines.push({ glazeId: "", name: "", how: "" }); showLines();
-        const sel = linesBox.querySelectorAll(".gline select"); if (sel.length) sel[sel.length - 1].focus();
+        lines.push({ glazeId: "", name: "", how: "" }); showLines(); chooseFor(lines.length - 1);
       });
 
       el.querySelector("#p-cancel").addEventListener("click", closeSheet);
       el.querySelector("#pform").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const name = el.querySelector("#p-name").value.trim();
-        if (!name) { el.querySelector("#p-name").focus(); toast("Give the piece a name."); return; }
+        const name = el.querySelector("#p-title").value.trim();
+        if (!name) { el.querySelector("#p-title").focus(); toast("Give the piece a name.", "warn"); return; }
+        if (photos.some((ph) => !ph.src && !ph.id)) { toast("A photo is still loading. Try again in a moment.", "warn"); return; }
         let clay = el.querySelector("#p-clay").value;
         if (clay === "__new") {
           clay = el.querySelector("#p-clay-new").value.trim();
-          if (!clay) { el.querySelector("#p-clay-new").focus(); toast("Type the new clay's name."); return; }
+          if (!clay) { el.querySelector("#p-clay-new").focus(); toast("Type the new clay's name.", "warn"); return; }
           const same = clays().find((c) => c.toLowerCase() === clay.toLowerCase());
           if (same) clay = same; else api.saveSettings({ clays: [...clays(), clay] });
         }
@@ -741,31 +934,34 @@ import {
             out.push({ glazeId: g.id, name: g.name, how: (l.how || "").trim() });
           } else if (l.glazeId) out.push({ glazeId: l.glazeId, name: lineName(l), how: (l.how || "").trim() });
         }
+        const photoIds = photos.map((ph) => ph.id || storePhoto(ph.src));
         const data = {
           name,
           date: el.querySelector("#p-date").value || "",
           clay,
           glazes: out,
           notes: el.querySelector("#p-notes").value.trim(),
-          photos,
+          photoIds,
           createdAt: p.createdAt || Date.now(),
         };
         if (p.example) data.example = true;
-        if (tooBig(data)) { toast("Too many photos to save together. Remove one and try again."); return; }
         const ok = await api.save("pieces", p.id || uid(), data);
-        if (ok) { closeSheet(); toast(isNew ? "Piece added" : "Saved"); }
+        if (ok) {
+          pieceIds(p).filter((id) => !photoIds.includes(id)).forEach(dropPhoto); // removed or rotated
+          closeSheet(); toast(isNew ? "Piece added" : "Saved", "ok");
+        }
       });
       if (!isNew) armDelete(el.querySelector("#p-del"), "Delete", async () => {
-        if (await api.remove("pieces", p.id)) { closeSheet(); toast("Piece deleted"); }
+        if (await api.remove("pieces", p.id)) { pieceIds(p).forEach(dropPhoto); closeSheet(); toast("Piece deleted", "ok"); }
       });
-    });
+    }, { big: true });
   }
 
   function glazeSheet(g) {
     const isNew = !g;
     g = g || { name: "", brand: "", rating: "", notes: "" };
-    let photo = isPhoto(g.photo) ? g.photo : "", rating = g.rating || "";
-    const usedOn = isNew ? [] : piecesWithGlaze(g.id);
+    let photo = g.photoId ? { id: g.photoId, src: photoCache.get(g.photoId) || "" } : null, rating = g.rating || "";
+    const usedOn = isNew ? [] : piecesWithGlaze(g.id).sort(pieceSort);
     openSheet(`
       <h3>${isNew ? "Add a glaze" : "Edit glaze"}</h3>
       <form id="gform" class="fgrid" novalidate>
@@ -777,41 +973,49 @@ import {
             <input class="vh" type="file" id="g-file" accept="image/*" tabindex="-1" aria-hidden="true">
           </div>
         </div>
-        <label class="f full">Name<input id="g-name" required value="${esc(g.name)}" placeholder="e.g. Floating Blue"></label>
-        <label class="f full">Brand or recipe<input id="g-brand" value="${esc(g.brand)}" placeholder="Optional, e.g. Amaco Potter's Choice"></label>
+        <label class="f full">Glaze<input id="g-title" required value="${esc(g.name)}" placeholder="e.g. Floating Blue" ${TEXT_ATTRS} autocapitalize="words"></label>
+        <label class="f full">Brand or recipe<input id="g-brand" value="${esc(g.brand)}" placeholder="Optional, e.g. Amaco Potter's Choice" ${TEXT_ATTRS} autocapitalize="words"></label>
         <div class="full">
           <div class="sect-label">Did you like it?</div>
           <div class="pills" id="g-rating" role="radiogroup" aria-label="Did you like it?">
             ${RATINGS.map(([k, label]) => `<button type="button" role="radio" data-r="${k}" aria-checked="${k === rating}">${label}</button>`).join("")}
           </div>
         </div>
-        <label class="f full">Notes<textarea id="g-notes" rows="5" placeholder="How many coats, how it breaks, runs or pools, what clay it looks best on">${esc(g.notes)}</textarea></label>
-        ${usedOn.length ? `<div class="full"><div class="sect-label">Used on</div><div class="gchips">${usedOn.sort(pieceSort).map((p) => `<span class="gchip">${isPhoto((p.photos || [])[0]) ? `<img src="${esc(p.photos[0])}" alt="">` : `<span class="dot"></span>`}<span>${esc(p.name)}</span></span>`).join("")}</div></div>` : ""}
+        <label class="f full">Notes<textarea id="g-notes" rows="5" placeholder="How many coats, how it breaks, runs or pools, what clay it looks best on" ${TEXT_ATTRS} autocapitalize="sentences">${esc(g.notes)}</textarea></label>
+        ${usedOn.length ? `<div class="full"><div class="sect-label">Used on</div><div class="gchips">${usedOn.map((p) => {
+          const src = photoSrc(pieceIds(p)[0]);
+          return `<button type="button" class="gchip" data-open-piece="${esc(p.id)}">${src ? `<img src="${esc(src)}" alt="">` : `<span class="dot"></span>`}<span>${esc(p.name)}</span></button>`;
+        }).join("")}</div></div>` : ""}
       </form>
       <div class="actions">
         ${isNew ? "" : `<button class="btn danger" id="g-del" type="button">Delete</button>`}
         <div class="right"><button class="btn ghost" type="button" id="g-cancel">Cancel</button><button class="btn" type="submit" form="gform">${isNew ? "Add glaze" : "Save"}</button></div>
       </div>`, (el) => {
       const showPhoto = () => {
-        el.querySelector("#g-photo-box").innerHTML = photo
-          ? `<div class="ph"><button type="button" class="img" id="g-photo-view" aria-label="View photo"><img src="${esc(photo)}" alt="Photo of this glaze"></button></div>`
+        el.querySelector("#g-photo-box").innerHTML = photo ? photoTile(photo, 0, { label: "glaze photo" })
           : `<button type="button" class="ph-add" id="g-photo-add"><b>+</b>Add photo</button>`;
         el.querySelector("#g-photo-btn").textContent = photo ? "Change photo" : "Add photo";
         el.querySelector("#g-photo-rm").hidden = !photo;
       };
       showPhoto();
+      if (photo && !photo.src) loadPhoto(photo.id).then((src) => { if (src && photo && !photo.src) { photo.src = src; showPhoto(); } });
       const pick = () => el.querySelector("#g-file").click();
       el.querySelector("#g-photo-btn").addEventListener("click", pick);
-      el.querySelector("#g-photo-box").addEventListener("click", (e) => {
-        if (e.target.closest("#g-photo-add")) pick();
-        if (e.target.closest("#g-photo-view")) viewPhotos([photo]);
+      el.querySelector("#g-photo-box").addEventListener("click", async (e) => {
+        if (e.target.closest("#g-photo-add")) return pick();
+        if (e.target.closest("[data-ph-view]")) return viewPhotos([photo.src], 0, el.querySelector("#g-title").value.trim());
+        if (e.target.closest("[data-ph-rm]")) { photo = null; return showPhoto(); }
+        const rot = e.target.closest("[data-ph-rot]"); if (!rot) return;
+        rot.disabled = true;
+        try { photo = { id: "", src: await rotatePhoto(photo.src) }; } catch (ex) { console.error(ex); toast("Couldn't turn that photo.", "err"); }
+        showPhoto();
       });
-      el.querySelector("#g-photo-rm").addEventListener("click", () => { photo = ""; showPhoto(); });
+      el.querySelector("#g-photo-rm").addEventListener("click", () => { photo = null; showPhoto(); });
       el.querySelector("#g-file").addEventListener("change", async (e) => {
         const f = e.target.files && e.target.files[0]; e.target.value = "";
         if (!f) return;
         const btn = el.querySelector("#g-photo-btn"); btn.disabled = true; btn.textContent = "Loading…";
-        try { photo = await shrinkPhoto(f); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG."); }
+        try { photo = { id: "", src: await shrinkPhoto(f) }; } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
         btn.disabled = false; showPhoto();
       });
       el.querySelector("#g-rating").addEventListener("click", (e) => {
@@ -819,30 +1023,37 @@ import {
         rating = rating === b.dataset.r ? "" : b.dataset.r; // tap again to clear
         el.querySelectorAll("#g-rating [data-r]").forEach((x) => x.setAttribute("aria-checked", String(x.dataset.r === rating)));
       });
+      el.querySelector("form").addEventListener("click", (e) => {
+        const op = e.target.closest("[data-open-piece]"); if (op) pieceSheet(pieceById(op.dataset.openPiece));
+      });
       el.querySelector("#g-cancel").addEventListener("click", closeSheet);
       el.querySelector("#gform").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const name = el.querySelector("#g-name").value.trim();
-        if (!name) { el.querySelector("#g-name").focus(); toast("Give the glaze a name."); return; }
+        const name = el.querySelector("#g-title").value.trim();
+        if (!name) { el.querySelector("#g-title").focus(); toast("Give the glaze a name.", "warn"); return; }
         const clash = glazeByName(name);
-        if (clash && clash.id !== g.id) { el.querySelector("#g-name").focus(); toast(`There's already a glaze called ${clash.name}.`); return; }
+        if (clash && clash.id !== g.id) { el.querySelector("#g-title").focus(); toast(`There's already a glaze called ${clash.name}.`, "warn"); return; }
+        if (photo && !photo.src && !photo.id) { toast("The photo is still loading. Try again in a moment.", "warn"); return; }
         const data = { name, brand: el.querySelector("#g-brand").value.trim(), rating, notes: el.querySelector("#g-notes").value.trim(), createdAt: g.createdAt || Date.now() };
-        if (photo) data.photo = photo;
+        if (photo) data.photoId = photo.id || storePhoto(photo.src);
         if (g.example) data.example = true;
         const ok = await api.save("glazes", g.id || uid(), data);
-        if (ok) { closeSheet(); toast(isNew ? "Glaze added" : "Saved"); }
+        if (ok) {
+          if (g.photoId && g.photoId !== data.photoId) dropPhoto(g.photoId); // replaced, rotated or removed
+          closeSheet(); toast(isNew ? "Glaze added" : "Saved", "ok");
+        }
       });
       if (!isNew) armDelete(el.querySelector("#g-del"), "Delete", async () => {
-        if (await api.remove("glazes", g.id)) { closeSheet(); toast(usedOn.length ? "Glaze deleted. Pieces that used it keep its name." : "Glaze deleted"); }
+        if (await api.remove("glazes", g.id)) { dropPhoto(g.photoId); closeSheet(); toast(usedOn.length ? "Glaze deleted. Pieces that used it keep its name." : "Glaze deleted", "ok"); }
       });
-    });
+    }, { big: true });
   }
 
   async function clearExamples() {
     const btn = document.getElementById("clear-ex"); if (btn) btn.disabled = true;
-    for (const p of state.pieces.filter((x) => x.example)) await api.remove("pieces", p.id);
-    for (const g of state.glazes.filter((x) => x.example)) await api.remove("glazes", g.id);
-    toast("Examples removed");
+    for (const p of state.pieces.filter((x) => x.example)) { await api.remove("pieces", p.id); pieceIds(p).forEach(dropPhoto); }
+    for (const g of state.glazes.filter((x) => x.example)) { await api.remove("glazes", g.id); dropPhoto(g.photoId); }
+    toast("Examples removed", "ok");
   }
 
   // ---------- Backups (photos aren't included; they stay in the app) ----------
@@ -853,13 +1064,13 @@ import {
   function downloadPieces() {
     const rows = [["Name", "Date finished", "Clay body", "Glazes", "Notes", "Photos"]];
     for (const p of state.pieces.slice().sort(pieceSort)) {
-      rows.push([p.name, p.date, p.clay, (p.glazes || []).map((l) => lineName(l) + (l.how ? ` (${l.how})` : "")).join("; "), p.notes, (p.photos || []).length]);
+      rows.push([p.name, p.date, p.clay, (p.glazes || []).map((l) => lineName(l) + (l.how ? ` (${l.how})` : "")).join("; "), p.notes, pieceIds(p).length]);
     }
     downloadFile(toCSV(rows), `pottery-pieces-${todayStr()}.csv`);
   }
   function downloadGlazes() {
     const rows = [["Name", "Brand or recipe", "Liked it?", "Notes", "Pieces used on"]];
-    for (const g of state.glazes.slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
+    for (const g of state.glazes.slice().sort(glazeSort)) {
       rows.push([g.name, g.brand, ratingLabel(g.rating), g.notes, piecesWithGlaze(g.id).length]);
     }
     downloadFile(toCSV(rows), `pottery-glazes-${todayStr()}.csv`);
@@ -872,38 +1083,103 @@ import {
   });
   document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet() : pieceSheet()));
   const view = document.getElementById("view");
-  view.addEventListener("click", (e) => {
+  view.addEventListener("click", async (e) => {
     const t = e.target;
     if (t.closest("[data-act='clear-examples']")) return clearExamples();
     if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
     if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
+    if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
+    const zp = t.closest("[data-zoom-piece]");
+    if (zp) { const p = pieceById(zp.dataset.zoomPiece); if (p) viewPhotos(await Promise.all(pieceIds(p).map(loadPhoto)), 0, p.name); return; }
+    const zg = t.closest("[data-zoom-glaze]");
+    if (zg) { const g = glazeById(zg.dataset.zoomGlaze); if (g) viewPhotos([await loadPhoto(g.photoId)], 0, g.name); return; }
     const gp = t.closest("[data-glaze-pieces]");
     if (gp) { state.filterGlaze = gp.dataset.glazePieces; state.search = ""; state.tab = "pieces"; render(); window.scrollTo(0, 0); return; }
     const pc = t.closest("[data-piece]"); if (pc) return pieceSheet(pieceById(pc.dataset.piece));
     const gl = t.closest("[data-glaze]"); if (gl) return glazeSheet(glazeById(gl.dataset.glaze));
     const r = t.closest("[data-rating]"); if (r) { state.filterRating = r.dataset.rating; render(); return; }
     const cr = t.closest("[data-clay-remove]");
-    if (cr) { api.saveSettings({ clays: clays().filter((c) => c !== cr.dataset.clayRemove) }); toast(`${cr.dataset.clayRemove} removed. Pieces made with it keep it.`); }
+    if (cr) { api.saveSettings({ clays: clays().filter((c) => c !== cr.dataset.clayRemove) }); toast(`${cr.dataset.clayRemove} removed. Pieces made with it keep it.`, "ok"); }
   });
   view.addEventListener("input", (e) => {
     if (e.target.id === "q") { state.search = e.target.value; render(); }
     if (e.target.id === "gq") { state.gsearch = e.target.value; render(); }
-  });
-  view.addEventListener("change", (e) => {
-    if (e.target.id === "filter-glaze") { state.filterGlaze = e.target.value; render(); }
   });
   view.addEventListener("submit", (e) => {
     if (e.target.id !== "clay-add") return;
     e.preventDefault();
     const name = document.getElementById("clay-new").value.trim();
     if (!name) return;
-    if (clays().some((c) => c.toLowerCase() === name.toLowerCase())) { toast(`${name} is already in the list.`); return; }
+    if (clays().some((c) => c.toLowerCase() === name.toLowerCase())) { toast(`${name} is already in the list.`, "warn"); return; }
     api.saveSettings({ clays: [...clays(), name] });
+    toast(`${name} added`, "ok");
   });
 
   render();
   connect();
 }
+</script>
+<script>
+// Keep popups and the box being typed in clear of the on-screen keyboard. iOS doesn't shrink the page
+// for the keyboard, it only shrinks the "visual viewport", so popups sized to the screen end up half hidden.
+(function () {
+  var vv = window.visualViewport; if (!vv) return;
+  var root = document.documentElement, typing = /^(INPUT|TEXTAREA|SELECT)$/;
+  function inPopup(el) { return el && el.closest && el.closest(".sheet, .picker"); }
+  function fit() {
+    var open = window.innerHeight - vv.height > 120 && vv.scale < 1.05; // keyboard (not pinch-zoom) is taking space
+    root.classList.toggle("kb-open", open);
+    if (open) { root.style.setProperty("--kb-h", vv.height + "px"); root.style.setProperty("--kb-top", vv.offsetTop + "px"); }
+    else { root.style.removeProperty("--kb-h"); root.style.removeProperty("--kb-top"); }
+  }
+  function reveal() {
+    var a = document.activeElement;
+    if (a && typing.test(a.tagName) && inPopup(a)) a.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  vv.addEventListener("resize", function () { fit(); setTimeout(reveal, 60); });
+  vv.addEventListener("scroll", fit);
+  document.addEventListener("focusin", function (e) { if (typing.test(e.target.tagName) && inPopup(e.target)) setTimeout(function () { fit(); reveal(); }, 350); });
+})();
+</script>
+<script>
+// Auto-update: when she comes back to the app (and every 15 minutes while it's open), ask GitHub Pages
+// whether a newer copy of this page has been published. If so, reload, but only when nothing is in
+// progress: no popup or photo open and no box being typed in. Otherwise it waits for the next check.
+(function () {
+  var MIN_GAP = 2 * 60 * 1000, lastCheck = 0, checking = false, waiting = false;
+  var here = Date.parse(document.lastModified);
+  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  function busy() {
+    var sheet = document.getElementById("sheet-root");
+    if (sheet && sheet.children.length) return true;
+    if (document.querySelector(".viewer")) return true;
+    var a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+  function check() {
+    if (checking || document.hidden || !navigator.onLine || Date.now() - lastCheck < MIN_GAP) return;
+    checking = true; lastCheck = Date.now();
+    // "reload" skips the phone's saved copy and refreshes it, so the reload below gets the new page
+    fetch(location.pathname, { cache: "reload" }).then(function (r) {
+      var there = Date.parse(r.headers.get("Last-Modified") || "");
+      if (!r.ok || isNaN(there) || isNaN(here) || there - here < 1000) return;
+      var tried = "";
+      try { tried = sessionStorage.getItem("ver-reload") || ""; } catch (e) {}
+      if (tried === String(there)) return; // already reloaded for this version once; don't loop
+      if (busy()) { lastCheck = 0; waiting = true; return; } // try again when the popup closes or next time
+      try { sessionStorage.setItem("ver-reload", String(there)); } catch (e) {}
+      location.reload();
+    }).catch(function () {}).then(function () { checking = false; });
+  }
+  document.addEventListener("visibilitychange", check);
+  window.addEventListener("focus", check);
+  window.addEventListener("pageshow", check);
+  setInterval(check, 15 * 60 * 1000);
+  var sheetRoot = document.getElementById("sheet-root");
+  if (sheetRoot && window.MutationObserver) new MutationObserver(function () {
+    if (waiting && !sheetRoot.children.length) { waiting = false; setTimeout(check, 800); }
+  }).observe(sheetRoot, { childList: true });
+})();
 </script>
 </body>
 </html>
