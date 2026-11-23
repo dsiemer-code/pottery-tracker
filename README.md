@@ -45,24 +45,31 @@ Open the GitHub Pages link on each device and sign in.
 
 ## Using it
 
-**Pieces** are finished pots. Each one has a name, the date it was finished, up to 10 photos, the clay body, the glazes used, and notes. For each glaze there's a **How** line for how it went on (e.g. "2 dips", "brushed 3 coats, rim only"). On a phone, **Add photos** offers the camera or the photo library. On each photo, **★** makes it the cover (the one on the card), **↻** turns it a quarter turn, and **×** removes it. Tap a photo on a card to see it full screen; tap the rest of the card to edit.
+**Pieces** each have photos (up to 10, plus a photo of the bottom), a name, and these sections, which start closed and show a one-line summary of what's filled in:
+- **About the piece:** form (mug, bowl, platter… or type your own), size XS–XL, technique (hand built, slab built, wheel thrown, altered), slab thickness, and marks: best / favorite combo, runner, failed.
+- **Status and dates:** thrown, trimmed, bisqued, glazed, finished. The latest date is the piece's status, so unfinished pieces show "Bisqued" and so on.
+- **Clay:** clay body, new or recycled, grams used, weight, size before and after firing, and how many ounces it holds.
+- **Glazes and decoration:** glazes in the order they went on, each with coats, how (brushed, dipped, poured, squeeze bottle, spatter… or type your own) and where (inside, bottom 2/3…). ↑ moves a glaze earlier. Also the layering technique (frozen pond, overlapping randomly…), a description, decorations (slip, underglaze, refire…), decorative techniques and tools.
+- **Firing:** firing type (oxidation, reduction, wood, soda, raku, luster), bisque and glaze temperatures.
+- **Price range:** low and high.
+- **My comments.**
 
-Glazes are picked from a list with their photos. A glaze that isn't in the Glazes tab yet can be typed in the list's search box and added as a new glaze; it's added to the Glazes tab when the piece is saved. **+ New clay…** works the same way for clay.
+On each photo, **★** makes it the cover, **↻** turns it a quarter turn, **×** removes it. On a card, swipe the photo (or tap ‹ ›) to see the others, and tap it to see it full screen. Tap the rest of the card to edit. The top of the tab shows how many pieces there are.
 
-Search finds pieces by name, notes, clay, glaze, or how a glaze was applied. **All glazes** narrows the list to pieces with one glaze.
+Search finds pieces by any word: name, form, glaze name or color, how it went on, notes. "blue mug" finds mugs with a blue glaze. The filters narrow to one glaze, one form, one mark, or in-progress / finished pieces.
 
-**Glazes** each have a photo (a test tile or a pot), a brand or recipe, **Did you like it?** (Love it / It's OK / Not for me) and notes. The buttons at the top show only the glazes she loved, or only the ones she didn't. **Used on N pieces** jumps to those pieces. Deleting a glaze doesn't change the pieces that used it; they keep its name.
+**Glazes & supplies** holds glazes, underglazes, Stroke & Coat, stains, low-fire glazes, slips and clay bodies. Each has a photo (a test tile or swatch), a name, what kind it is and **Did you like it?**, then closed sections for buying (manufacturer, size, price, best place to buy), color and firing (color, fire and bisque temperature, the clay it works on, whether it's a runner; shrinkage for clay bodies) and notes (description, recipe, notes). The buttons at the top show one kind, one rating, or the runners. **Used on N pieces** jumps to those pieces. Deleting one doesn't change the pieces that used it; they keep its name.
+
+Glazes are picked for a piece from a list with their photos. A glaze that isn't in the list yet can be typed in the list's search box; it's added when the piece is saved. **+ New clay…** on a piece adds a clay body the same way.
 
 **Updates** reach her devices by themselves: when the app comes back on screen (and every 15 minutes while open) it checks for a newer version and reloads, but never while a popup is open or she's typing. The version under the title is the date and time it was published.
 
-**Clay bodies** are a short list at the bottom of the Glazes tab, used for the clay choice on each piece.
-
 ## What's stored
 ```
-studio/shared/pieces/{id}     name, date finished, clay, glazes (glaze, name, how), notes, photo ids
-studio/shared/glazes/{id}     name, brand or recipe, liked it, notes, photo id
+studio/shared/pieces/{id}     name, form, status dates, clay, glazes in order, firing, price, comments, photo ids
+studio/shared/glazes/{id}     glazes, underglazes, clay bodies and other supplies, each with a photo id
 studio/shared/photos/{id}     one photo each
-studio/shared/settings/studio clay body list
+studio/shared/settings/studio older clay body list (clay bodies are now supplies)
 ```
 
 **Photos** are shrunk to about 900 px and kept in Firestore in their own records, so they need no paid Firebase Storage plan and work offline. Loading the app reads only the pieces and glazes; each photo is downloaded once per device when it's first shown, then read from the device's copy. A photo is never changed once saved (a rotated photo is saved as a new one), which is what makes that copy safe to reuse.
@@ -70,7 +77,7 @@ studio/shared/settings/studio clay body list
 The free plan allows 50,000 reads and 20,000 writes per day and 1 GB of storage. At about 150 KB per photo, that's room for several thousand photos.
 
 ## Backups
-**Download backup** on each tab saves the pieces or glazes as a spreadsheet (CSV) file. Doing that now and then gives her a copy outside Firebase. Photos aren't in the file.
+**Download backup** on each tab saves the pieces or supplies as a spreadsheet (CSV) file. Doing that now and then gives her a copy outside Firebase. Photos aren't in the file.
 
 ## Testing locally
 Modules don't load from `file://`, so serve the folder:
