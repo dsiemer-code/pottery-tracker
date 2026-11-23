@@ -409,7 +409,7 @@ import {
       return true;
     } catch (e) { console.error(e); toast("That didn't save. Try again in a moment.", "err"); return false; }
   }
-  const ref = (col, id) => doc(fs, "users", uidPath, col, id);
+  const ref = (col, id) => doc(fs, "studio", "shared", col, id);
   const api = {
     async save(col, id, data) {
       if (!fs) { const i = local[col].findIndex((x) => x.id === id); const rec = { id, ...data }; if (i >= 0) local[col][i] = rec; else local[col].push(rec); syncLocal(); return true; }
@@ -422,12 +422,12 @@ import {
     // Studio-wide settings (the clay body list) live in one document
     async saveSettings(data) {
       if (!fs) { Object.assign(local.settings, data); syncLocal(); return true; }
-      return write(() => setDoc(doc(fs, "users", uidPath, "settings", "studio"), data, { merge: true }));
+      return write(() => setDoc(doc(fs, "studio", "shared", "settings", "studio"), data, { merge: true }));
     },
   };
 
   // ---------- Photos ----------
-  // Photos live in their own documents (users/{uid}/photos/{id} = { data }) so loading the pieces doesn't
+  // Photos live in their own documents (studio/shared/photos/{id} = { data }) so loading the pieces doesn't
   // download every picture. Pieces keep photoIds, glazes a photoId. A photo never changes once written
   // (a new or rotated picture gets a new id), so each device downloads it once and then reads it from its cache.
   const photoCache = new Map(), photoWaits = new Map();
@@ -547,15 +547,15 @@ import {
       uidPath = user.uid;
       showApp(true); render();
       const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load your pieces. Check the Firestore rules in the setup guide.", "err"); };
-      unsubs.push(onSnapshot(collection(fs, "users", uidPath, "pieces"), { includeMetadataChanges: true }, (snap) => {
+      unsubs.push(onSnapshot(collection(fs, "studio", "shared", "pieces"), { includeMetadataChanges: true }, (snap) => {
         state.pieces = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.p = true; setSync(syncLabel(snap)); render();
       }, onErr));
-      unsubs.push(onSnapshot(collection(fs, "users", uidPath, "glazes"), { includeMetadataChanges: true }, (snap) => {
+      unsubs.push(onSnapshot(collection(fs, "studio", "shared", "glazes"), { includeMetadataChanges: true }, (snap) => {
         state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.g = true; setSync(syncLabel(snap)); render(); prefetchGlazePhotos();
       }, onErr));
-      unsubs.push(onSnapshot(doc(fs, "users", uidPath, "settings", "studio"), (snap) => {
+      unsubs.push(onSnapshot(doc(fs, "studio", "shared", "settings", "studio"), (snap) => {
         state.settings = snap.exists() ? snap.data() : {}; render();
       }, onErr));
     });

@@ -3,7 +3,7 @@
 A small web app for keeping track of finished pottery: photos of each piece, which glazes and clay went on it and how, and notes. A Glazes tab holds a photo of each glaze and notes on whether she liked it. Works in any browser and can be added to a phone or tablet home screen like an app.
 
 - **The app** is static files hosted free on GitHub Pages.
-- **The data** lives in a free Google Firebase project (Firestore database), tied to her sign-in. Her phone and tablet see the same records.
+- **The data** lives in a free Google Firebase project (Firestore database). Everyone who signs in sees and edits the same records, on any phone or tablet.
 - **Offline:** the app keeps a copy on the device. Changes made with no signal are saved on the device and sync once it's back online. She does need to be online the first time she signs in on a device.
 
 Until `firebase-config.js` is filled in, the app runs in **demo mode** with sample data and saves nothing. That's a good way to try it first.
@@ -20,12 +20,12 @@ Make a **new** Firebase project for this app rather than reusing the Plushie Led
 ### 2. Turn on sign-in
 1. **Build → Authentication → Get started**.
 2. Under **Sign-in method**, enable **Email/Password**.
-3. Under **Users → Add user**, enter her email and a password. This is her login.
-4. There's no sign-up form in the app, so nobody else can create an account.
+3. Under **Users → Add user**, enter an email and a password for each person who should use the app. Each one is a login; they all share the same records.
+4. Go to **Settings → User actions**, untick **Enable create (sign-up)**, and click **Save**. There's no sign-up form in the app either, so only the people added in step 3 can get in.
 
 ### 3. Create the database
 1. **Build → Firestore Database → Create database**. Pick a location near you (e.g. `us-east1`) and start in **production mode**.
-2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. This makes sure each person can only see their own data.
+2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. This lets anyone who is signed in read and change the records, and keeps everyone else out.
 
 ### 4. Connect the app
 1. **Project settings** (gear icon) → **General** → **Your apps** → click the **`</>`** (Web) icon. Register the app (no Firebase Hosting needed).
@@ -59,10 +59,10 @@ Search finds pieces by name, notes, clay, glaze, or how a glaze was applied. **A
 
 ## What's stored
 ```
-users/{her-account-id}/pieces/{id}     name, date finished, clay, glazes (glaze, name, how), notes, photo ids
-users/{her-account-id}/glazes/{id}     name, brand or recipe, liked it, notes, photo id
-users/{her-account-id}/photos/{id}     one photo each
-users/{her-account-id}/settings/studio clay body list
+studio/shared/pieces/{id}     name, date finished, clay, glazes (glaze, name, how), notes, photo ids
+studio/shared/glazes/{id}     name, brand or recipe, liked it, notes, photo id
+studio/shared/photos/{id}     one photo each
+studio/shared/settings/studio clay body list
 ```
 
 **Photos** are shrunk to about 900 px and kept in Firestore in their own records, so they need no paid Firebase Storage plan and work offline. Loading the app reads only the pieces and glazes; each photo is downloaded once per device when it's first shown, then read from the device's copy. A photo is never changed once saved (a rotated photo is saved as a new one), which is what makes that copy safe to reuse.
