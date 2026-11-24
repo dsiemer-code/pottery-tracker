@@ -238,6 +238,7 @@ textarea { resize: vertical; min-height: 96px; }
 .viewer .cap { color: #fff; font-weight: 600; text-align: center; }
 .viewer .bar { display: flex; gap: 10px; align-items: center; }
 .viewer .bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,.35); min-width: 48px; font-size: 1.2rem; }
+.viewer .bar .v-crop { margin-left: 8px; min-width: 72px; }
 .viewer .bar span { color: #fff; font-weight: 600; min-width: 4ch; text-align: center; }
 .viewer .v-close { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 16px; background: rgba(255,255,255,.92); color: #2B231E; }
 @media (prefers-reduced-motion: no-preference) { .viewer { animation: vfade .15s ease-out; } @keyframes vfade { from { opacity: 0; } } }
@@ -951,21 +952,26 @@ import {
   }
 
   // Full-screen photo, with arrows when there are several. Tap the dark area to close.
-  function viewPhotos(photos, start = 0, caption = "") {
-    photos = photos.filter(Boolean); if (!photos.length) return;
-    let i = Math.min(start, photos.length - 1);
+  // onCrop(index): when given (in an edit popup), a Crop button closes the viewer and hands back which photo to crop.
+  function viewPhotos(photos, start = 0, caption = "", { onCrop } = {}) {
+    // Keep each photo's original position, since ones still loading ("") are left out
+    const list = photos.map((src, k) => ({ src, k })).filter((x) => x.src); if (!list.length) return;
+    photos = list.map((x) => x.src);
+    let i = Math.max(0, list.findIndex((x) => x.k === start));
     const root = document.createElement("div");
     root.className = "viewer"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", caption || "Photo");
     const draw = () => {
       root.innerHTML = `<button class="btn small v-close" data-v="close">Close</button><img src="${esc(photos[i])}" alt="${esc(caption)}">
         ${caption ? `<div class="cap">${esc(caption)}</div>` : ""}
-        ${photos.length > 1 ? `<div class="bar"><button class="btn ghost small" data-v="-1" aria-label="Previous photo">‹</button><span class="num">${i + 1} / ${photos.length}</span><button class="btn ghost small" data-v="1" aria-label="Next photo">›</button></div>` : ""}`;
+        ${photos.length > 1 || onCrop ? `<div class="bar">${photos.length > 1 ? `<button class="btn ghost small" data-v="-1" aria-label="Previous photo">‹</button><span class="num">${i + 1} / ${photos.length}</span><button class="btn ghost small" data-v="1" aria-label="Next photo">›</button>` : ""}
+          ${onCrop ? `<button class="btn small v-crop" data-v="crop">Crop</button>` : ""}</div>` : ""}`;
     };
     draw();
     root.addEventListener("click", (e) => {
       const b = e.target.closest("[data-v]");
       if (!b) { if (e.target === root) root.remove(); return; }
       if (b.dataset.v === "close") return root.remove();
+      if (b.dataset.v === "crop") { root.remove(); return onCrop(list[i].k); }
       i = (i + Number(b.dataset.v) + photos.length) % photos.length; draw();
     });
     document.body.appendChild(root);
@@ -1092,7 +1098,7 @@ import {
     if (ph0 && !ph0.src) loadPhoto(ph0.id).then((src) => { const ph = get(); if (src && ph && !ph.src) { ph.src = src; show(); } });
     box.addEventListener("click", async (e) => {
       if (e.target.closest("[data-add]")) return fileInput.click();
-      if (e.target.closest("[data-ph-view]")) return viewPhotos([get().src], 0, caption());
+      if (e.target.closest("[data-ph-view]")) return viewPhotos([get().src], 0, caption(), { onCrop: async () => { const out = await cropPhoto(get().src); if (out) { set({ id: "", src: out }); show(); } } });
       if (e.target.closest("[data-ph-rm]")) { set(null); return show(); }
       const rot = e.target.closest("[data-ph-rot]"); if (!rot) return;
       rot.disabled = true;
@@ -1189,7 +1195,7 @@ import {
       const showPhotos = () => {
         box.innerHTML = photos.map((ph, i) => photoTile(ph, i, { cover: i === 0 && photos.length > 1 })).join("")
           + (photos.length < MAX_PHOTOS ? `<button type="button" class="ph-add" id="p-photo-add"><b>+</b>${photos.length ? "Add photo" : "Add photos"}</button>` : "");
-        el.querySelector("#p-photo-hint").textContent = photos.length > 1 ? "The cover shows first on the card. ★ makes a photo the cover, ↻ turns it." : photos.length ? "↻ turns a photo that came in sideways." : "";
+        el.querySelector("#p-photo-hint").textContent = photos.length > 1 ? "The cover shows first on the card. ★ makes a photo the cover, ↻ turns it. Tap a photo to crop it." : photos.length ? "↻ turns a photo that came in sideways. Tap it to crop it." : "";
       };
       showPhotos();
       // Photos already saved may not be on this device yet
@@ -1198,7 +1204,10 @@ import {
         if (e.target.closest("#p-photo-add")) return el.querySelector("#p-file").click();
         const b = e.target.closest("[data-ph-view],[data-ph-rm],[data-ph-rot],[data-ph-cover]"); if (!b) return;
         const { phView, phRm, phRot, phCover } = b.dataset;
-        if (phView !== undefined) return viewPhotos(photos.map((x) => x.src), Number(phView), el.querySelector("#p-title").value.trim());
+        if (phView !== undefined) return viewPhotos(photos.map((x) => x.src), Number(phView), el.querySelector("#p-title").value.trim(), {
+          // A re-cropped photo is saved as a new one (the old one is removed on save), like a rotated one
+          onCrop: async (k) => { const ph = photos[k]; const out = ph && await cropPhoto(ph.src); if (out) { ph.src = out; ph.id = ""; showPhotos(); } },
+        });
         if (phRm !== undefined) { photos.splice(Number(phRm), 1); return showPhotos(); }
         if (phCover !== undefined) { photos.unshift(photos.splice(Number(phCover), 1)[0]); showPhotos(); return toast("That photo is now the cover"); }
         const ph = photos[Number(phRot)]; b.disabled = true;
