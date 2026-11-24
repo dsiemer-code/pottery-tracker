@@ -324,6 +324,8 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 .crop-foot { padding: 6px 16px 14px; display: grid; gap: 10px; justify-items: center; text-align: center; }
 .crop-foot p { margin: 0; color: rgba(255,255,255,.75); font-size: .9rem; }
 .crop-foot div { display: flex; gap: 10px; }
+.crop-foot [data-msg] { min-height: 1.4em; }
+.cropper .btn:disabled { opacity: .5; }
 </style>
 </head>
 <body>
@@ -477,25 +479,84 @@ import {
     return canvasJpeg(c);
   }
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  // Shows the photo with a box she can drag and resize. Resolves with the finished photo, or "" if she cancels.
+  // ---------- Removing the background ----------
+  // IMG.LY's background removal runs on the phone itself (nothing is uploaded). It's only loaded the first time
+  // she uses it: about 56 MB (the program plus the model), which the browser keeps for next time.
+  const BG_LIB = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm";
+  let bgLib = null;
+  // Returns { src, box }: the photo on white, and where the piece is in it (fractions) so the crop can start there
+  async function removeBg(src, onProgress) {
+    if (!bgLib) bgLib = import(BG_LIB).catch((e) => { bgLib = null; throw e; });
+    const { removeBackground } = await bgLib;
+    const blob = await removeBackground(src, { model: "isnet_quint8", output: { format: "image/png" }, progress: (key, cur, total) => onProgress && onProgress(key, cur, total) });
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = await loadImg(url);
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      // Clean up: keep the piece (the biggest solid shape, plus any others nearly as big, like a set of mugs)
+      // and clear the faint specks the remover sometimes leaves behind. Works on a 4px grid to stay quick.
+      const id = ctx.getImageData(0, 0, W, H), a = id.data, S = 4, gw = Math.ceil(W / S), gh = Math.ceil(H / S);
+      const solid = new Uint8Array(gw * gh), comp = new Int32Array(gw * gh).fill(-1), sizes = [];
+      for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) solid[gy * gw + gx] = a[((gy * S) * W + gx * S) * 4 + 3] > 128 ? 1 : 0;
+      for (let i = 0; i < solid.length; i++) {
+        if (!solid[i] || comp[i] >= 0) continue;
+        const n = sizes.length, stack = [i]; comp[i] = n; let size = 0;
+        while (stack.length) {
+          const j = stack.pop(); size++;
+          const jx = j % gw, jy = (j - jx) / gw;
+          for (const k of [jx > 0 ? j - 1 : -1, jx < gw - 1 ? j + 1 : -1, jy > 0 ? j - gw : -1, jy < gh - 1 ? j + gw : -1])
+            if (k >= 0 && solid[k] && comp[k] < 0) { comp[k] = n; stack.push(k); }
+        }
+        sizes.push(size);
+      }
+      if (!sizes.length) { ctx.globalCompositeOperation = "destination-over"; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H); return { src: c.toDataURL("image/jpeg", 0.92), box: null }; }
+      const biggest = Math.max(...sizes), keepComp = sizes.map((z) => z >= biggest * 0.15);
+      // Cells to keep: the kept shapes, grown by 2 cells so soft edges survive
+      const keep = new Uint8Array(gw * gh);
+      let x0 = gw, y0 = gh, x1 = -1, y1 = -1;
+      for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+        const ci = comp[gy * gw + gx]; if (ci < 0 || !keepComp[ci]) continue;
+        if (gx < x0) x0 = gx; if (gx > x1) x1 = gx; if (gy < y0) y0 = gy; if (gy > y1) y1 = gy;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const nx = gx + dx, ny = gy + dy; if (nx >= 0 && ny >= 0 && nx < gw && ny < gh) keep[ny * gw + nx] = 1; }
+      }
+      for (let y = 0; y < H; y++) { const row = ((y / S) | 0) * gw; for (let x = 0; x < W; x++) if (!keep[row + ((x / S) | 0)]) a[(y * W + x) * 4 + 3] = 0; }
+      ctx.putImageData(id, 0, 0);
+      ctx.globalCompositeOperation = "destination-over"; ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+      const out = c.toDataURL("image/jpeg", 0.92);
+      // Start the crop around the piece, with a little room
+      const px0 = x0 * S, py0 = y0 * S, px1 = Math.min(W, (x1 + 1) * S), py1 = Math.min(H, (y1 + 1) * S);
+      const pad = 0.08 * Math.max(px1 - px0, py1 - py0);
+      const bx = Math.max(0, px0 - pad), by = Math.max(0, py0 - pad), bw = Math.min(W, px1 + pad) - bx, bh = Math.min(H, py1 + pad) - by;
+      return { src: out, box: { x: bx / W, y: by / H, w: bw / W, h: bh / H } };
+    } finally { URL.revokeObjectURL(url); }
+  }
+
+  // Shows the photo with a box she can drag and resize, and a button to take the background out.
+  // Resolves with the finished photo, or "" if she cancels.
   function cropPhoto(src, title = "Crop the photo") {
     return new Promise((resolve) => {
-      const full = { x: 0, y: 0, w: 1, h: 1 }, MIN = 0.08;
-      let r = { ...full }, drag = null;
+      const full = { x: 0, y: 0, w: 1, h: 1 }, MIN = 0.08, original = src;
+      let r = { ...full }, drag = null, working = false;
       const root = document.createElement("div");
       root.className = "cropper"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", title);
       root.innerHTML = `
         <div class="crop-head"><button type="button" class="btn ghost small" data-c="cancel">Cancel</button><span>${esc(title)}</span><button type="button" class="btn small" data-c="done">Use photo</button></div>
         <div class="crop-stage"><div class="crop-wrap"><img src="${esc(src)}" alt="" draggable="false"><div class="crop-box">${["nw", "ne", "sw", "se"].map((h) => `<i data-h="${h}"></i>`).join("")}</div></div></div>
-        <div class="crop-foot"><p>Drag a corner to crop. Drag inside the box to move it.</p>
+        <div class="crop-foot"><p data-msg>Drag a corner to crop. Drag inside the box to move it.</p>
+          <div><button type="button" class="btn ghost small" data-c="bg">Remove background</button></div>
           <div><button type="button" class="btn ghost small" data-c="square">Square</button><button type="button" class="btn ghost small" data-c="whole">Whole photo</button></div></div>`;
       document.body.appendChild(root);
       const wrap = root.querySelector(".crop-wrap"), box = root.querySelector(".crop-box"), img = root.querySelector("img");
+      const msg = root.querySelector("[data-msg]"), bgBtn = root.querySelector("[data-c=bg]");
+      const HINT = msg.textContent;
       const draw = () => Object.assign(box.style, { left: r.x * 100 + "%", top: r.y * 100 + "%", width: r.w * 100 + "%", height: r.h * 100 + "%" });
       draw();
       wrap.addEventListener("pointerdown", (e) => {
         const h = e.target.closest("[data-h]");
-        if (!h && !e.target.closest(".crop-box")) return;
+        if (working || (!h && !e.target.closest(".crop-box"))) return;
         e.preventDefault(); wrap.setPointerCapture(e.pointerId);
         drag = { h: h ? h.dataset.h : "move", x: e.clientX, y: e.clientY, r: { ...r }, W: wrap.clientWidth, H: wrap.clientHeight };
       });
@@ -515,8 +576,30 @@ import {
       const end = () => { drag = null; };
       wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
       const finish = (val) => { root.remove(); resolve(val); };
+      const busy = (on) => { working = on; root.querySelectorAll("[data-c]").forEach((b) => { if (b.dataset.c !== "cancel") b.disabled = on; }); };
+      async function takeOutBackground() {
+        busy(true); bgBtn.textContent = "Removing background…";
+        msg.textContent = "Getting ready…";
+        try {
+          const res = await removeBg(src, (key, cur, total) => {
+            if (!root.isConnected) return;
+            if (String(key).startsWith("fetch")) msg.textContent = `First time only: downloading the background remover… ${total ? Math.round((cur / total) * 100) : 0}%`;
+            else msg.textContent = "Finding the piece… this can take a little while.";
+          });
+          if (!root.isConnected) return;
+          src = res.src; img.src = src;
+          if (res.box) { r = res.box; draw(); }
+          bgBtn.textContent = "Put background back"; bgBtn.dataset.on = "1";
+          msg.textContent = "Background removed. Adjust the crop if you like.";
+        } catch (ex) {
+          console.error(ex);
+          bgBtn.textContent = "Remove background"; msg.textContent = HINT;
+          toast(navigator.onLine ? "Couldn't remove the background from this photo." : "Removing the background needs a connection the first time.", "err");
+        }
+        busy(false);
+      }
       root.addEventListener("click", async (e) => {
-        const b = e.target.closest("[data-c]"); if (!b) return;
+        const b = e.target.closest("[data-c]"); if (!b || b.disabled) return;
         const c = b.dataset.c;
         if (c === "cancel") return finish("");
         if (c === "whole") { r = { ...full }; return draw(); }
@@ -524,7 +607,11 @@ import {
           const W = img.naturalWidth || 1, H = img.naturalHeight || 1, side = Math.min(W, H);
           r = { w: side / W, h: side / H, x: (1 - side / W) / 2, y: (1 - side / H) / 2 }; return draw();
         }
-        b.disabled = true; b.textContent = "Saving…";
+        if (c === "bg") {
+          if (b.dataset.on) { src = original; img.src = src; r = { ...full }; draw(); delete b.dataset.on; b.textContent = "Remove background"; msg.textContent = HINT; return; }
+          return takeOutBackground();
+        }
+        busy(true); b.textContent = "Saving…";
         try { finish(await cutPhoto(src, r)); } catch (ex) { console.error(ex); toast("Couldn't crop that photo.", "err"); finish(""); }
       });
       root.querySelector("[data-c=done]").focus();

@@ -54,7 +54,7 @@ Open the GitHub Pages link on each device and sign in.
 - **Price range:** low and high.
 - **My comments.**
 
-Each new photo opens on a crop screen first: drag the corners in around the part to keep (or tap **Square** or **Whole photo**), then **Use photo**. On each photo, **★** makes it the cover, **↻** turns it a quarter turn, **×** removes it. Tapping a photo in the edit popup shows it full screen with a **Crop** button for re-cropping it later. On a card, swipe the photo (or tap ‹ ›) to see the others, and tap it to see it full screen. Tap the rest of the card to edit. The top of the tab shows how many pieces there are.
+Each new photo opens on a crop screen first: drag the corners in around the part to keep (or tap **Square** or **Whole photo**), then **Use photo**. **Remove background** takes out everything but the piece and puts it on white (the first time, it downloads about 56 MB, so do that on Wi-Fi; it runs on the phone, nothing is uploaded). **Put background back** undoes it. On each photo, **★** makes it the cover, **↻** turns it a quarter turn, **×** removes it. Tapping a photo in the edit popup shows it full screen with a **Crop** button for re-cropping it later. On a card, swipe the photo (or tap ‹ ›) to see the others, and tap it to see it full screen. Tap the rest of the card to edit. The top of the tab shows how many pieces there are.
 
 Search finds pieces by any word: name, form, glaze name or color, how it went on, notes. "blue mug" finds mugs with a blue glaze. The filters narrow to one glaze, one form, one mark, or in-progress / finished pieces.
 
