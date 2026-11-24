@@ -303,6 +303,26 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 .coats span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
 .gline-row [data-f="where"] { grid-column: 1 / -1; }
 @media (min-width: 600px) { .gline-row { grid-template-columns: 104px 1fr 1.3fr; } .gline-row [data-f="where"] { grid-column: auto; } }
+
+/* Crop screen for a new photo */
+.cropper { position: fixed; inset: 0; z-index: 55; background: #120D0A; color: #fff; display: flex; flex-direction: column;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+.crop-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; font-weight: 600; text-align: center; }
+.cropper .btn.ghost { color: #fff; border-color: rgba(255,255,255,.4); }
+.crop-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 18px 28px; }
+.crop-wrap { position: relative; line-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+.crop-wrap img { display: block; max-width: calc(100vw - 56px); max-height: calc(100vh - 210px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); -webkit-user-drag: none; pointer-events: none; }
+@supports (height: 100dvh) { .crop-wrap img { max-height: calc(100dvh - 210px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); } }
+.crop-box { position: absolute; box-shadow: 0 0 0 9999px rgba(0,0,0,.6); outline: 2px solid #fff; cursor: move; }
+.crop-box i { position: absolute; width: 26px; height: 26px; border: 4px solid #fff; }
+.crop-box i::before { content: ""; position: absolute; inset: -14px; }
+.crop-box [data-h=nw] { left: 0; top: 0; border-right: 0; border-bottom: 0; cursor: nwse-resize; }
+.crop-box [data-h=ne] { right: 0; top: 0; border-left: 0; border-bottom: 0; cursor: nesw-resize; }
+.crop-box [data-h=sw] { left: 0; bottom: 0; border-right: 0; border-top: 0; cursor: nesw-resize; }
+.crop-box [data-h=se] { right: 0; bottom: 0; border-left: 0; border-top: 0; cursor: nwse-resize; }
+.crop-foot { padding: 6px 16px 14px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.crop-foot p { margin: 0; color: rgba(255,255,255,.75); font-size: .9rem; }
+.crop-foot div { display: flex; gap: 10px; }
 </style>
 </head>
 <body>
@@ -433,6 +453,84 @@ import {
     ctx.translate(h, 0); ctx.rotate(Math.PI / 2); ctx.drawImage(img, 0, 0, w, h);
     return canvasJpeg(c);
   }
+
+  // ---------- Cropping a new photo ----------
+  // The photo opens at up to 1800px so a tight crop keeps its detail; the kept part is then shrunk to the usual 900px.
+  async function openLarge(file, max = 1800) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await loadImg(url);
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL("image/jpeg", 0.92);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  // r = { x, y, w, h } as fractions of the photo
+  async function cutPhoto(src, r, max = 900) {
+    const img = await loadImg(src);
+    const sx = r.x * img.naturalWidth, sy = r.y * img.naturalHeight, sw = r.w * img.naturalWidth, sh = r.h * img.naturalHeight;
+    const s = Math.min(1, max / Math.max(sw, sh));
+    const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(sw * s)); c.height = Math.max(1, Math.round(sh * s));
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    return canvasJpeg(c);
+  }
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  // Shows the photo with a box she can drag and resize. Resolves with the finished photo, or "" if she cancels.
+  function cropPhoto(src, title = "Crop the photo") {
+    return new Promise((resolve) => {
+      const full = { x: 0, y: 0, w: 1, h: 1 }, MIN = 0.08;
+      let r = { ...full }, drag = null;
+      const root = document.createElement("div");
+      root.className = "cropper"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", title);
+      root.innerHTML = `
+        <div class="crop-head"><button type="button" class="btn ghost small" data-c="cancel">Cancel</button><span>${esc(title)}</span><button type="button" class="btn small" data-c="done">Use photo</button></div>
+        <div class="crop-stage"><div class="crop-wrap"><img src="${esc(src)}" alt="" draggable="false"><div class="crop-box">${["nw", "ne", "sw", "se"].map((h) => `<i data-h="${h}"></i>`).join("")}</div></div></div>
+        <div class="crop-foot"><p>Drag a corner to crop. Drag inside the box to move it.</p>
+          <div><button type="button" class="btn ghost small" data-c="square">Square</button><button type="button" class="btn ghost small" data-c="whole">Whole photo</button></div></div>`;
+      document.body.appendChild(root);
+      const wrap = root.querySelector(".crop-wrap"), box = root.querySelector(".crop-box"), img = root.querySelector("img");
+      const draw = () => Object.assign(box.style, { left: r.x * 100 + "%", top: r.y * 100 + "%", width: r.w * 100 + "%", height: r.h * 100 + "%" });
+      draw();
+      wrap.addEventListener("pointerdown", (e) => {
+        const h = e.target.closest("[data-h]");
+        if (!h && !e.target.closest(".crop-box")) return;
+        e.preventDefault(); wrap.setPointerCapture(e.pointerId);
+        drag = { h: h ? h.dataset.h : "move", x: e.clientX, y: e.clientY, r: { ...r }, W: wrap.clientWidth, H: wrap.clientHeight };
+      });
+      wrap.addEventListener("pointermove", (e) => {
+        if (!drag) return;
+        const dx = (e.clientX - drag.x) / drag.W, dy = (e.clientY - drag.y) / drag.H, o = drag.r;
+        let { x, y, w, h } = o;
+        if (drag.h === "move") { x = clamp(o.x + dx, 0, 1 - o.w); y = clamp(o.y + dy, 0, 1 - o.h); }
+        else {
+          if (drag.h.includes("w")) { x = clamp(o.x + dx, 0, o.x + o.w - MIN); w = o.x + o.w - x; }
+          if (drag.h.includes("e")) w = clamp(o.w + dx, MIN, 1 - o.x);
+          if (drag.h.includes("n")) { y = clamp(o.y + dy, 0, o.y + o.h - MIN); h = o.y + o.h - y; }
+          if (drag.h.includes("s")) h = clamp(o.h + dy, MIN, 1 - o.y);
+        }
+        r = { x, y, w, h }; draw();
+      });
+      const end = () => { drag = null; };
+      wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
+      const finish = (val) => { root.remove(); resolve(val); };
+      root.addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-c]"); if (!b) return;
+        const c = b.dataset.c;
+        if (c === "cancel") return finish("");
+        if (c === "whole") { r = { ...full }; return draw(); }
+        if (c === "square") {
+          const W = img.naturalWidth || 1, H = img.naturalHeight || 1, side = Math.min(W, H);
+          r = { w: side / W, h: side / H, x: (1 - side / W) / 2, y: (1 - side / H) / 2 }; return draw();
+        }
+        b.disabled = true; b.textContent = "Saving…";
+        try { finish(await cutPhoto(src, r)); } catch (ex) { console.error(ex); toast("Couldn't crop that photo.", "err"); finish(""); }
+      });
+      root.querySelector("[data-c=done]").focus();
+    });
+  }
+  // A photo she just picked: open it, let her crop it, and return the finished photo ("" if she cancelled)
+  async function addPhoto(file, title) { return cropPhoto(await openLarge(file), title); }
 
   function downloadFile(text, name) {
     // BOM + CRLF so Excel opens it with the right characters and rows
@@ -683,12 +781,27 @@ import {
     document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : "Add piece";
     const v = document.getElementById("view");
     const active = document.activeElement && document.activeElement.id;
-    const caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
+    let caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
     let html = banners();
     if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
     else if (state.tab === "glazes") html += glazesHTML();
     else html += piecesHTML();
-    v.innerHTML = html;
+    // While she's typing or dictating into a search box, swap everything around it but leave the box itself alone.
+    // Replacing it would end iPhone dictation after the first word.
+    const keep = (active === "q" || active === "gq") && document.getElementById(active);
+    const tmp = document.createElement("div"); tmp.innerHTML = html;
+    const newQ = keep && tmp.querySelector("#" + active);
+    const oldBar = newQ && keep.closest(".toolbar"), newBar = newQ && newQ.closest(".toolbar");
+    const oldPanel = oldBar && oldBar.parentElement, newPanel = newBar && newBar.parentElement;
+    if (oldPanel && newPanel && oldPanel.parentElement === v && newPanel.parentElement === tmp) {
+      [...oldPanel.childNodes].forEach((n) => n !== oldBar && n.remove());
+      const kids = [...newPanel.childNodes], at = kids.indexOf(newBar);
+      oldBar.before(...kids.slice(0, at)); oldBar.after(...kids.slice(at + 1));
+      [...v.childNodes].forEach((n) => n !== oldPanel && n.remove());
+      const top = [...tmp.childNodes], pi = top.indexOf(newPanel);
+      oldPanel.before(...top.slice(0, pi)); oldPanel.after(...top.slice(pi + 1));
+      caret = null;
+    } else v.innerHTML = html;
     // Put swiped photo strips back where they were
     v.querySelectorAll(".strip").forEach((s) => { const i = state.strip[s.dataset.strip] || 0; if (i) { s.scrollLeft = i * s.clientWidth; loadSlides(s, i); } });
     if (caret !== null) { const q = document.getElementById(active); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} } }
@@ -824,6 +937,7 @@ import {
   function closeSheet() { document.getElementById("sheet-root").innerHTML = ""; }
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
+    const crop = document.querySelector(".cropper"); if (crop) { crop.querySelector("[data-c=cancel]").click(); return; }
     const v = document.querySelector(".viewer"); if (v) { v.remove(); return; }
     const picker = document.querySelector(".picker-ov");
     if (picker) picker.remove(); else closeSheet();
@@ -989,7 +1103,7 @@ import {
       const f = e.target.files && e.target.files[0]; e.target.value = "";
       if (!f) return;
       box.innerHTML = `<div class="ph"><div class="loading">Loading…</div></div>`;
-      try { set({ id: "", src: await shrinkPhoto(f) }); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
+      try { const src = await addPhoto(f); if (src) set({ id: "", src }); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
       show();
     });
     return show;
@@ -1096,8 +1210,10 @@ import {
         const room = MAX_PHOTOS - photos.length;
         if (files.length > room) toast(`Up to ${MAX_PHOTOS} photos per piece; added the first ${room}.`, "warn");
         const add = el.querySelector("#p-photo-add"); if (add) { add.disabled = true; add.lastChild.textContent = "Loading…"; }
-        for (const f of files.slice(0, room)) {
-          try { photos.push({ id: "", src: await shrinkPhoto(f) }); } catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
+        const take = files.slice(0, room);
+        for (const [n, f] of take.entries()) {
+          try { const src = await addPhoto(f, take.length > 1 ? `Photo ${n + 1} of ${take.length}` : "Crop the photo"); if (src) photos.push({ id: "", src }); }
+          catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
         }
         showPhotos();
       });
@@ -1444,7 +1560,7 @@ import {
   function busy() {
     var sheet = document.getElementById("sheet-root");
     if (sheet && sheet.children.length) return true;
-    if (document.querySelector(".viewer")) return true;
+    if (document.querySelector(".viewer, .cropper")) return true;
     var a = document.activeElement;
     return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
   }
