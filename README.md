@@ -20,12 +20,12 @@ Make a **new** Firebase project for this app rather than reusing the Plushie Led
 ### 2. Turn on sign-in
 1. **Build → Authentication → Get started**.
 2. Under **Sign-in method**, enable **Email/Password**.
-3. Under **Users → Add user**, enter an email and a password for each person who should use the app. Each one is a login; they all share the same records.
-4. Go to **Settings → User actions**, untick **Enable create (sign-up)**, and click **Save**. There's no sign-up form in the app either, so only the people added in step 3 can get in.
+3. Under **Users → Add user**, add **her** email and a password. This is her login. Everyone else is added later from the app's **People** screen.
+4. Leave **Settings → User actions → Enable create (sign-up)** off for now. It gets turned on in step 7, after the rules are in.
 
 ### 3. Create the database
 1. **Build → Firestore Database → Create database**. Pick a location near you (e.g. `us-east1`) and start in **production mode**.
-2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. This lets anyone who is signed in read and change the records, and keeps everyone else out.
+2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. These rules only let in people on the app's People list: **full access** (see and change everything) or **students** (look only). Anyone else who signs in can only ask to be let in.
 
 ### 4. Connect the app
 1. **Project settings** (gear icon) → **General** → **Your apps** → click the **`</>`** (Web) icon. Register the app (no Firebase Hosting needed).
@@ -38,7 +38,13 @@ Make a **new** Firebase project for this app rather than reusing the Plushie Led
 3. After a minute the site is live at `https://dsiemer-code.github.io/pottery-tracker/` (if the repo is named `pottery-tracker`).
 4. Back in Firebase: **Authentication → Settings → Authorized domains → Add domain** and add `dsiemer-code.github.io`. Without this, sign-in is refused on the live site.
 
-### 6. Put it on her phone and tablet
+### 6. Open the app once
+Open the GitHub Pages link and sign in with her login. **The first person to open the app gets full access** and becomes the first person on the People list, so she should be first.
+
+### 7. Turn sign-up on (so the app can add people)
+**Authentication → Settings → User actions**, tick **Enable create (sign-up)**, **Save**. Do this only after the rules from step 3 are published and she has opened the app. Strangers could then make a login, but the rules keep them out: they only show up under "Waiting to get in" for her to accept or turn away.
+
+### 8. Put it on her phone and tablet
 Open the GitHub Pages link on each device and sign in.
 - **iPhone / iPad (Safari):** Share → **Add to Home Screen**.
 - **Android (Chrome):** ⋮ menu → **Add to Home screen** / **Install app**.
@@ -62,6 +68,10 @@ Search finds pieces by any word: name, form, glaze name or color, how it went on
 
 Glazes are picked for a piece from a list with their photos. A glaze that isn't in the list yet can be typed in the list's search box; it's added when the piece is saved. **+ New clay…** on a piece adds a clay body the same way.
 
+**People** (top right, full access only) is where she gives people logins: name, email, a starting password, and **Full access** or **Student (view only)**. **Copy sign-in details** copies the link, email and password to paste into a text. She can switch someone between full access and student, or remove them (they can't see anything after that; their login stays in Firebase, where it can be deleted under Authentication → Users). Someone who already has a login but isn't on the list (for example, made on the Firebase website) sees "Almost there" when they sign in and shows up under **Waiting to get in**, with a red number on People.
+
+**Students** see the same pieces and supplies, with everything locked: no Add button, no Save, no photo changes.
+
 **Updates** reach her devices by themselves: when the app comes back on screen (and every 15 minutes while open) it checks for a newer version and reloads, but never while a popup is open or she's typing. The version under the title is the date and time it was published.
 
 ## What's stored
@@ -70,6 +80,9 @@ studio/shared/pieces/{id}     name, form, status dates, clay, glazes in order, f
 studio/shared/glazes/{id}     glazes, underglazes, clay bodies and other supplies, each with a photo id
 studio/shared/photos/{id}     one photo each
 studio/shared/settings/studio older clay body list (clay bodies are now supplies)
+studio/shared/settings/setup  marks that the first person has been set up
+studio/shared/members/{id}    the People list: email, name, full or student
+studio/shared/requests/{id}   people who signed in and are waiting to be let in
 ```
 
 **Photos** are shrunk to about 900 px and kept in Firestore in their own records, so they need no paid Firebase Storage plan and work offline. Loading the app reads only the pieces and glazes; each photo is downloaded once per device when it's first shown, then read from the device's copy. A photo is never changed once saved (a rotated photo is saved as a new one), which is what makes that copy safe to reuse.

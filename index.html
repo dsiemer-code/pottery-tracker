@@ -326,6 +326,28 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 .crop-foot div { display: flex; gap: 10px; }
 .crop-foot [data-msg] { min-height: 1.4em; }
 .cropper .btn:disabled { opacity: .5; }
+
+/* People */
+#people { position: relative; }
+.badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--danger); color: #fff; font-size: .72rem; font-weight: 700; vertical-align: 1px; }
+.pp-list { display: grid; gap: 8px; margin-bottom: 18px; }
+.pp-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.pp-who { display: grid; min-width: 0; }
+.pp-who b { overflow-wrap: anywhere; }
+.pp-who small { color: var(--muted); overflow-wrap: anywhere; }
+.pp-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pp-acts select { width: auto; padding-block: 7px; }
+.pp-waiting { background: var(--warn-soft); border-radius: 14px; padding: 12px; margin-bottom: 18px; }
+.pp-waiting .pp-row { background: var(--surface); }
+.pp-add { border-top: 1px solid var(--line); padding-top: 16px; }
+.pp-card { display: grid; gap: 8px; justify-items: start; background: var(--good-soft); border-radius: 12px; padding: 12px 14px; }
+
+/* Read-only popups (students) */
+.sheet.ro .ph-acts, .sheet.ro .ph-add, .sheet.ro #p-add-line, .sheet.ro .l-remove, .sheet.ro #p-photo-hint, .sheet.ro .photo-one .hint { display: none; }
+.sheet.ro .pills button, .sheet.ro .pick-btn { pointer-events: none; }
+.sheet.ro .pick-btn::after { display: none; }
+.sheet.ro input:disabled, .sheet.ro select:disabled, .sheet.ro textarea:disabled { opacity: 1; color: var(--ink); -webkit-text-fill-color: var(--ink); }
+.sheet.ro ::placeholder { color: transparent; -webkit-text-fill-color: transparent; }
 </style>
 </head>
 <body>
@@ -350,6 +372,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
       </script>
       <div class="head-right">
         <span class="sync" id="sync">Loading…</span>
+        <button class="linkbtn" id="people" type="button" hidden>People<span class="badge num" id="people-n" hidden></span></button>
         <button class="linkbtn" id="signout" type="button" hidden>Sign out</button>
       </div>
     </div>
@@ -382,10 +405,10 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 <script type="module">
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, initializeAuth, inMemoryPersistence, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromCache,
+  collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromCache, writeBatch, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 {
@@ -411,7 +434,7 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", offline: false, strip: {} };
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
   const local = { pieces: [], glazes: [], settings: {}, photos: {} };
@@ -789,7 +812,7 @@ import {
           notes: "Handle a bit thick. Try pulling it thinner next time.", photoIds: [pic("mug", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 2e6, example: true },
       ];
       local.settings = {};
-      setSync("Demo mode");
+      setSync("Demo mode"); state.role = "full";
       showApp(true); syncLocal();
       return;
     }
@@ -798,24 +821,62 @@ import {
     try { fs = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager(), cacheSizeBytes: 300 * 1024 * 1024 }) }); }
     catch (e) { fs = initializeFirestore(app, {}); }
 
-    onAuthStateChanged(auth, (user) => {
-      unsubs.forEach((u) => u()); unsubs = [];
-      state.pieces = []; state.glazes = []; state.settings = {}; state.loaded = { p: false, g: false };
-      if (!user) { uidPath = null; setSync(""); showApp(false); return; }
-      uidPath = user.uid;
-      showApp(true); render();
-      const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load your pieces. Check the Firestore rules in the setup guide.", "err"); };
-      unsubs.push(onSnapshot(collection(fs, "studio", "shared", "pieces"), { includeMetadataChanges: true }, (snap) => {
+    // Signing in only proves who someone is. What they can do comes from the People list (studio/shared/members):
+    // "full" or "student". Someone not on it sees a waiting screen and shows up under "Waiting to get in".
+    let dataUnsubs = [];
+    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.members = []; state.requests = []; state.loaded = { p: false, g: false }; };
+    function startData() {
+      stopData();
+      const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load the pieces. Check the Firestore rules in the setup guide.", "err"); };
+      dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "pieces"), { includeMetadataChanges: true }, (snap) => {
         state.pieces = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.p = true; setSync(syncLabel(snap)); render();
       }, onErr));
-      unsubs.push(onSnapshot(collection(fs, "studio", "shared", "glazes"), { includeMetadataChanges: true }, (snap) => {
+      dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "glazes"), { includeMetadataChanges: true }, (snap) => {
         state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.g = true; setSync(syncLabel(snap)); render(); prefetchGlazePhotos();
       }, onErr));
-      unsubs.push(onSnapshot(doc(fs, "studio", "shared", "settings", "studio"), (snap) => {
+      dataUnsubs.push(onSnapshot(doc(fs, "studio", "shared", "settings", "studio"), (snap) => {
         state.settings = snap.exists() ? snap.data() : {}; render();
       }, onErr));
+      if (state.role === "full") {
+        dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "members"), (snap) => { state.members = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); }, console.error));
+        dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "requests"), (snap) => { state.requests = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); render(); }, console.error));
+      }
+    }
+    // Not on the People list: the very first person sets things up as full access; anyone else asks to be let in
+    async function notAMember(user) {
+      const meRef = doc(fs, "studio", "shared", "members", user.uid), setupRef = doc(fs, "studio", "shared", "settings", "setup");
+      const setup = await getDoc(setupRef);
+      if (!setup.exists()) {
+        const b = writeBatch(fs);
+        b.set(meRef, { email: user.email || "", name: "", role: "full", createdAt: Date.now() });
+        b.set(setupRef, { by: user.uid, at: Date.now() });
+        await b.commit();
+        toast("You're set up with full access", "ok");
+        return;
+      }
+      const reqRef = doc(fs, "studio", "shared", "requests", user.uid);
+      if (!(await getDoc(reqRef)).exists()) await setDoc(reqRef, { email: user.email || "", createdAt: Date.now() });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      unsubs.forEach((u) => u()); unsubs = []; stopData();
+      state.role = null; state.me = null;
+      if (!user) { uidPath = null; setSync(""); showApp(false); render(); return; }
+      uidPath = user.uid; state.me = { uid: user.uid, email: user.email || "" };
+      showApp(true); render();
+      unsubs.push(onSnapshot(doc(fs, "studio", "shared", "members", user.uid), async (snap) => {
+        if (snap.exists()) {
+          const role = snap.data().role === "student" ? "student" : "full";
+          if (role !== state.role) { state.role = role; startData(); }
+          render(); return;
+        }
+        if (state.role) { stopData(); closeSheet(); }   // taken off the list while the app was open
+        state.role = "";
+        render();
+        try { await notAMember(user); } catch (e) { console.error(e); state.accessError = true; render(); }
+      }, (e) => { console.error(e); setSync("Can't load"); state.role = ""; state.accessError = true; render(); }));
     });
 
     document.getElementById("signin").addEventListener("submit", async (e) => {
@@ -870,6 +931,13 @@ import {
     const v = document.getElementById("view");
     const active = document.activeElement && document.activeElement.id;
     let caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
+    const member = !fs || !!state.role, signedIn = !fs || !!state.me;
+    document.getElementById("tabs").hidden = !signedIn || !member;
+    document.getElementById("fab").hidden = !signedIn || !canEdit();
+    document.getElementById("people").hidden = !signedIn || !canEdit();
+    const pn = document.getElementById("people-n"); pn.hidden = !state.requests.length; pn.textContent = state.requests.length;
+    if (fs && !state.me) { v.innerHTML = ""; return; }
+    if (!member) { v.innerHTML = waitingHTML(); return; }
     let html = banners();
     if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
     else if (state.tab === "glazes") html += glazesHTML();
@@ -898,7 +966,7 @@ import {
   function banners() {
     let h = "";
     if (state.offline) h += `<div class="banner">Demo mode: nothing is saved yet. Fill in firebase-config.js (see the README) to keep records and sync between devices.</div>`;
-    if (hasExamples()) h += `<div class="banner"><span>The entries marked <span class="chip ex">Example</span> are samples to show how things look.</span><button class="btn small" data-act="clear-examples" id="clear-ex">Remove examples</button></div>`;
+    if (hasExamples()) h += `<div class="banner"><span>The entries marked <span class="chip ex">Example</span> are samples to show how things look.</span>${canEdit() ? `<button class="btn small" data-act="clear-examples" id="clear-ex">Remove examples</button>` : ""}</div>`;
     return h;
   }
 
@@ -1012,13 +1080,154 @@ import {
         : `<section class="panel"><div class="empty">${state.glazes.length ? "Nothing matches." : "Nothing here yet. Tap “Add” to save a glaze, underglaze or clay body with a photo and notes."}</div></section>`}`;
   }
 
+  // ---------- People ----------
+  const ROLES = [["full", "Full access"], ["student", "Student (view only)"]];
+  const canEdit = () => !fs || state.role === "full";
+  // New logins are made with a second, separate sign-in so making one doesn't sign her out
+  let adderAuth = null;
+  function getAdder() {
+    if (!adderAuth) adderAuth = initializeAuth(initializeApp(firebaseConfig, "adder"), { persistence: inMemoryPersistence });
+    return adderAuth;
+  }
+  const appLink = () => location.origin + location.pathname;
+  const memberRef = (uid) => doc(fs, "studio", "shared", "members", uid);
+  const requestRef = (uid) => doc(fs, "studio", "shared", "requests", uid);
+
+  function refreshPeople() {
+    const el = document.querySelector(".sheet.people"); if (!el) return;
+    const me = state.me && state.me.uid;
+    const members = state.members.slice().sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : (a.name || a.email || "").localeCompare(b.name || b.email || "")));
+    el.querySelector("#pp-list").innerHTML = members.map((m) => `<div class="pp-row">
+        <div class="pp-who"><b>${esc(m.name || m.email)}</b>${m.name ? `<small>${esc(m.email)}</small>` : ""}</div>
+        ${m.id === me ? `<span class="chip">You · Full access</span>`
+          : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${ROLES.map(([k, l]) => `<option value="${k}"${(m.role || "full") === k ? " selected" : ""}>${l}</option>`).join("")}</select>
+             <button type="button" class="btn small danger" data-remove="${esc(m.id)}">Remove</button></div>`}
+      </div>`).join("") || `<p class="hint">Loading…</p>`;
+    el.querySelectorAll("[data-remove]").forEach((b) => armDelete(b, "Remove", async () => {
+      try { await deleteDoc(memberRef(b.dataset.remove)); toast("Removed. They can't see the studio anymore.", "ok"); } catch (e) { console.error(e); toast("Couldn't remove them. Try again.", "err"); }
+    }));
+    const reqs = state.requests.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    el.querySelector("#pp-wait").innerHTML = reqs.length ? `<div class="pp-waiting"><div class="sect-label">Waiting to get in</div>
+      ${reqs.map((r) => `<div class="pp-row">
+        <div class="pp-who"><b>${esc(r.email || "Someone")}</b><small>Signed in ${esc(new Date(r.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }))} and asked to get in</small></div>
+        <div class="pp-acts"><button type="button" class="btn small" data-let="${esc(r.id)}" data-as="full">Full access</button><button type="button" class="btn small ghost" data-let="${esc(r.id)}" data-as="student">Student</button><button type="button" class="btn small danger" data-decline="${esc(r.id)}">No</button></div>
+      </div>`).join("")}</div>` : "";
+  }
+
+  function peopleSheet() {
+    if (!fs) {
+      openSheet(`<h3>People</h3><p class="hint">In demo mode there's nobody to add. Once Firebase is connected, this is where people get logins: full access, or students who can look but not change anything.</p>
+        <div class="actions"><div class="right"><button class="btn" type="button" id="pp-close">Close</button></div></div>`, (el) => el.querySelector("#pp-close").addEventListener("click", closeSheet));
+      return;
+    }
+    openSheet(`
+      <h3>People</h3>
+      <div id="pp-wait"></div>
+      <div class="sect-label">Who can sign in</div>
+      <div id="pp-list" class="pp-list"></div>
+      <form id="pp-add" class="pp-add" novalidate>
+        <div class="sect-label">Add someone</div>
+        <div class="fgrid">
+          <label class="f">Name<input id="pp-name" placeholder="e.g. Sarah" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f">Email<input id="pp-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sarah@example.com"></label>
+          <label class="f">Starting password<input id="pp-pass" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="At least 6 characters"></label>
+          <div class="f"><span>Access</span>${pillSet("pp-role", ROLES, ["full"], { single: true, label: "Access" })}</div>
+          <p class="hint full">Full access can add and change everything, including people. Students can look at everything but can't change anything.</p>
+          <div class="full"><button class="btn" type="submit" id="pp-go">Add person</button></div>
+          <div class="full" id="pp-done"></div>
+        </div>
+      </form>
+      <div class="actions"><div class="right"><button class="btn ghost" type="button" id="pp-close">Close</button></div></div>`, (el) => {
+      el.classList.add("people");
+      refreshPeople();
+      wireForm(el);
+      el.querySelector("#pp-close").addEventListener("click", closeSheet);
+      el.addEventListener("change", async (e) => {
+        const s = e.target.closest("[data-role]"); if (!s) return;
+        try { await updateDoc(memberRef(s.dataset.role), { role: s.value }); toast(s.value === "student" ? "Changed to student (view only)" : "Changed to full access", "ok"); }
+        catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); refreshPeople(); }
+      });
+      el.addEventListener("click", async (e) => {
+        const let_ = e.target.closest("[data-let]"), no = e.target.closest("[data-decline]");
+        if (let_) {
+          const r = state.requests.find((x) => x.id === let_.dataset.let); if (!r) return;
+          let_.disabled = true;
+          try {
+            const b = writeBatch(fs);
+            b.set(memberRef(r.id), { email: r.email || "", name: "", role: let_.dataset.as, createdAt: Date.now() });
+            b.delete(requestRef(r.id));
+            await b.commit();
+            toast(`${r.email || "They"} can get in now`, "ok");
+          } catch (ex) { console.error(ex); toast("Couldn't let them in. Try again.", "err"); let_.disabled = false; }
+        }
+        if (no) { try { await deleteDoc(requestRef(no.dataset.decline)); toast("Request removed", "ok"); } catch (ex) { console.error(ex); toast("Couldn't remove that. Try again.", "err"); } }
+        const cp = e.target.closest("[data-copy]");
+        if (cp) {
+          try { await navigator.clipboard.writeText(cp.dataset.copy); toast("Copied. Paste it into a text to them.", "ok"); }
+          catch (ex) { toast("Couldn't copy. Write the email and password down instead.", "warn"); }
+        }
+      });
+      el.querySelector("#pp-add").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = el.querySelector("#pp-name").value.trim(), email = el.querySelector("#pp-email").value.trim().toLowerCase(), pass = el.querySelector("#pp-pass").value;
+        const role = readPills(el, "pp-role")[0] || "full";
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { el.querySelector("#pp-email").focus(); return toast("Type their email address.", "warn"); }
+        if (pass.length < 6) { el.querySelector("#pp-pass").focus(); return toast("The password needs at least 6 characters.", "warn"); }
+        const go = el.querySelector("#pp-go"); go.disabled = true; go.textContent = "Adding…";
+        try {
+          const adder = getAdder();
+          const cred = await createUserWithEmailAndPassword(adder, email, pass);
+          const uid = cred.user.uid;
+          await signOut(adder);
+          await setDoc(memberRef(uid), { email, name, role, createdAt: Date.now() });
+          const details = `Pottery Tracker\n${appLink()}\nEmail: ${email}\nPassword: ${pass}`;
+          el.querySelector("#pp-done").innerHTML = `<div class="pp-card"><b>${esc(name || email)} can sign in now${role === "student" ? " (view only)" : ""}.</b>
+            <span>Send them the link, their email and this password: <b>${esc(pass)}</b></span>
+            <button type="button" class="btn small" data-copy="${esc(details)}">Copy sign-in details</button></div>`;
+          ["#pp-name", "#pp-email", "#pp-pass"].forEach((s) => (el.querySelector(s).value = ""));
+          toast(`${name || email} added`, "ok");
+        } catch (ex) {
+          console.error(ex);
+          const c = (ex && ex.code) || "";
+          toast(c.includes("email-already-in-use") ? "That email already has a login. Have them open the app and sign in; they'll show up here under “Waiting to get in”." :
+            c.includes("invalid-email") ? "That email doesn't look right." :
+            c.includes("weak-password") ? "Pick a longer password." :
+            c.includes("operation-not-allowed") || c.includes("admin-restricted") ? "Firebase isn't allowing new logins yet. Turn on “Enable create (sign-up)” in Firebase (see the setup guide)." :
+            c.includes("network") ? "No connection. Try again when you're online." :
+            c.includes("permission") ? "This account can't add people." : "Couldn't add them. Try again.", "err");
+        }
+        go.disabled = false; go.textContent = "Add person";
+      });
+    }, { big: true });
+  }
+
+  // Students see everything but can't change it: same popups, with the boxes locked and no Save
+  function makeReadOnly(el) {
+    el.classList.add("ro");
+    el.querySelectorAll("input:not(.vh), select, textarea").forEach((x) => (x.disabled = true));
+    const acts = el.querySelector(".actions");
+    if (acts) { acts.innerHTML = `<div class="right"><button class="btn" type="button" data-ro-close>Close</button></div>`; acts.querySelector("[data-ro-close]").addEventListener("click", closeSheet); }
+    const h = el.querySelector("h3"); if (h) h.textContent = h.textContent.replace(/^Edit (\w)/, (m, c) => c.toUpperCase());
+  }
+
+  function waitingHTML() {
+    if (state.role === null) return `<section class="panel"><div class="empty">Checking your access…</div></section>`;
+    return `<section class="panel">
+      <h2>Almost there</h2>
+      <p style="margin:0 0 10px">You're signed in as <b>${esc(state.me ? state.me.email : "")}</b>, but you haven't been let in yet.</p>
+      <p style="margin:0;color:var(--muted)">Ask the person who runs this app to open <b>People</b> and let you in. This page updates by itself once they do.</p>
+      ${state.accessError ? `<p style="margin:10px 0 0;color:var(--danger)">Couldn't check your access. Make sure you're online, then close and reopen the app.</p>` : ""}
+    </section>`;
+  }
+
   // ---------- Sheets ----------
-  function openSheet(html, onMount, { big = false } = {}) {
+  function openSheet(html, onMount, { big = false, ro = false } = {}) {
     const root = document.getElementById("sheet-root");
     root.innerHTML = `<div class="overlay" id="overlay"><div class="sheet${big ? " big" : ""}" role="dialog" aria-modal="true">${html}</div></div>`;
     const ov = document.getElementById("overlay");
     ov.addEventListener("click", (e) => { if (e.target === ov) closeSheet(); });
     onMount && onMount(root.querySelector(".sheet"));
+    if (ro) makeReadOnly(root.querySelector(".sheet"));
     // Only jump into the first box with a mouse and keyboard; on a phone or iPad the keyboard would cover the popup
     const first = root.querySelector("input:not(.vh), textarea"); if (first && matchMedia("(pointer: fine)").matches) first.focus();
   }
@@ -1041,6 +1250,7 @@ import {
   // Full-screen photo, with arrows when there are several. Tap the dark area to close.
   // onCrop(index): when given (in an edit popup), a Crop button closes the viewer and hands back which photo to crop.
   function viewPhotos(photos, start = 0, caption = "", { onCrop } = {}) {
+    if (!canEdit()) onCrop = undefined;
     // Keep each photo's original position, since ones still loading ("") are left out
     const list = photos.map((src, k) => ({ src, k })).filter((x) => x.src); if (!list.length) return;
     photos = list.map((x) => x.src);
@@ -1162,7 +1372,7 @@ import {
     let queued = 0;
     const refresh = () => { if (queued) return; queued = requestAnimationFrame(() => { queued = 0; el.querySelectorAll("details.sect").forEach((d) => { d.querySelector(".sum").textContent = sectSummary(d); }); }); };
     el.addEventListener("click", (e) => {
-      const b = e.target.closest(".pills [data-v]");
+      const b = !el.classList.contains("ro") && e.target.closest(".pills [data-v]");
       if (b) {
         const set = b.parentElement, on = b.getAttribute("aria-checked") !== "true";
         if (set.hasAttribute("data-single")) set.querySelectorAll("[data-v]").forEach((x) => x.setAttribute("aria-checked", "false"));
@@ -1433,7 +1643,7 @@ import {
       if (!isNew) armDelete(el.querySelector("#p-del"), "Delete", async () => {
         if (await api.remove("pieces", p.id)) { piecePhotoIds(p).forEach(dropPhoto); closeSheet(); toast("Piece deleted", "ok"); }
       });
-    }, { big: true });
+    }, { big: true, ro: !canEdit() });
   }
 
   // Glazes, underglazes, clay bodies and other supplies all use this popup
@@ -1525,7 +1735,7 @@ import {
       if (!isNew) armDelete(el.querySelector("#g-del"), "Delete", async () => {
         if (await api.remove("glazes", g.id)) { dropPhoto(g.photoId); closeSheet(); toast(usedOn.length ? "Deleted. Pieces that used it keep its name." : "Deleted", "ok"); }
       });
-    }, { big: true });
+    }, { big: true, ro: !canEdit() });
   }
 
   async function clearExamples() {
@@ -1567,6 +1777,7 @@ import {
     const b = e.target.closest("button[data-tab]"); if (!b) return;
     state.tab = b.dataset.tab; render(); window.scrollTo(0, 0);
   });
+  document.getElementById("people").addEventListener("click", peopleSheet);
   document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet()));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
