@@ -119,6 +119,7 @@ button.pic { cursor: zoom-in; }
 button.body { cursor: pointer; }
 button.body:hover .name { color: var(--accent); }
 .card .name { font-family: var(--font-display); font-weight: 600; font-size: 1.12rem; line-height: 1.2; overflow-wrap: anywhere; }
+.code { font-family: var(--font-body, inherit); font-size: .78em; font-weight: 700; letter-spacing: .02em; padding: 1px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--ink); white-space: nowrap; vertical-align: 1px; }
 .card .meta { font-size: .86rem; color: var(--muted); }
 .card .notes { font-size: .9rem; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
 .card .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 0 14px 12px; }
@@ -792,8 +793,8 @@ import {
       const now = Date.now();
       const pic = (...a) => storePhoto(demoPot(...a));
       local.glazes = [
-        { id: "g1", name: "Floating Blue", type: "glaze", brand: "Amaco Potter's Choice", color: "Blue", cone: "Cone 5–6", size: "1 pint", price: "18.99", where: "Local clay supply", rating: "love", photoId: pic("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), description: "Deep blue that breaks brown over edges.", notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
-        { id: "g2", name: "Celadon", type: "glaze", brand: "Mayco Stoneware", color: "Pale green", cone: "Cone 6", rating: "ok", photoId: pic("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
+        { id: "g1", code: "PC-20", name: "Floating Blue", type: "glaze", brand: "Amaco Potter's Choice", color: "Blue", cone: "Cone 5–6", size: "1 pint", price: "18.99", where: "Local clay supply", rating: "love", photoId: pic("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), description: "Deep blue that breaks brown over edges.", notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
+        { id: "g2", code: "SW-100", name: "Celadon", type: "glaze", brand: "Mayco Stoneware", color: "Pale green", cone: "Cone 6", rating: "ok", photoId: pic("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
         { id: "g3", name: "Iron Red", type: "glaze", color: "Red", cone: "Cone 6", runner: true, rating: "no", photoId: pic("tile", "#7A2E1C", "#C9B49A", "#3A1A12"), notes: "Ran off the pot onto the kiln shelf. Never again on a vase.", createdAt: now - 1e8, example: true },
         { id: "g4", name: "Black Velvet", type: "underglaze", brand: "Amaco Velvet", color: "Black", cone: "Cone 05–10", createdAt: now - 9e7, example: true },
         { id: "c1", name: "Speckled Buff", type: "clay", brand: "Laguna", cone: "Cone 5–6", size: "25 lb", price: "32", shrinkage: "12", createdAt: now - 5e8, example: true },
@@ -909,8 +910,12 @@ import {
     return names.sort((a, b) => a.localeCompare(b));
   };
   // A piece keeps each glaze's name too, so it still reads right if the glaze is later deleted
+  // A glaze's code (e.g. PC-46) goes in front of its name wherever it's shown, since that's how she talks about them
+  const gLabel = (g) => [(g.code || "").trim(), g.name].filter(Boolean).join(" ");
+  const sameCode = (a, b) => a.replace(/[\s.-]/g, "").toLowerCase() === b.replace(/[\s.-]/g, "").toLowerCase();
   const lineName = (l) => { const g = glazeById(l.glazeId); return g ? g.name : l.name || "Glaze"; };
-  const lineText = (l) => [lineName(l), l.coats ? `× ${l.coats}` : "", l.method, l.where, l.how ? `(${l.how})` : ""].filter(Boolean).join(" ");
+  const lineLabel = (l) => { const g = glazeById(l.glazeId); return g ? gLabel(g) : l.name || "Glaze"; };
+  const lineText = (l) => [lineLabel(l), l.coats ? `× ${l.coats}` : "", l.method, l.where, l.how ? `(${l.how})` : ""].filter(Boolean).join(" ");
   const piecesWithGlaze = (gid) => state.pieces.filter((p) => (p.glazes || []).some((l) => l.glazeId === gid));
   const piecesWithClay = (name) => state.pieces.filter((p) => (p.clay || "").toLowerCase() === (name || "").toLowerCase());
   const stageDate = (p, k) => (k === "finished" ? p.date : (p.stages || {})[k]) || "";
@@ -975,7 +980,7 @@ import {
   function pieceText(p) {
     return [p.name, p.artist, p.notes, p.clay, p.form, p.size, p.layering, p.glazeNotes, p.decorTech, p.tools, p.firing, p.slab,
       ...(p.techniques || []), ...(p.decor || []), ...(p.tags || []).map(tagLabel), (statusOf(p) || [])[1],
-      ...(p.glazes || []).flatMap((l) => { const g = glazeById(l.glazeId); return [lineName(l), l.how, l.where, l.method, g && g.color, g && g.brand]; }),
+      ...(p.glazes || []).flatMap((l) => { const g = glazeById(l.glazeId); return [lineLabel(l), l.how, l.where, l.method, g && g.color, g && g.brand, g && g.code && g.code.replace(/[\s.-]/g, "")]; }),
     ].filter(Boolean).join(" ").toLowerCase();
   }
 
@@ -1001,8 +1006,8 @@ import {
           <input class="search" id="q" type="search" placeholder="Search: mug, blue, frozen pond…" value="${esc(state.search)}" aria-label="Search pieces" autocomplete="off">
         </div>
         ${state.pieces.length ? `<div class="filters">
-          ${glazeList().length ? `<button type="button" class="pick-btn" data-act="filter-glaze" aria-label="Show pieces with glaze: ${esc(fg ? fg.name : "All glazes")}">
-            ${fg ? glazeThumb(fg) : `<span class="gdot" aria-hidden="true">★</span>`}<span class="nm">${esc(fg ? fg.name : "All glazes")}</span></button>` : ""}
+          ${glazeList().length ? `<button type="button" class="pick-btn" data-act="filter-glaze" aria-label="Show pieces with glaze: ${esc(fg ? gLabel(fg) : "All glazes")}">
+            ${fg ? glazeThumb(fg) : `<span class="gdot" aria-hidden="true">★</span>`}<span class="nm">${esc(fg ? gLabel(fg) : "All glazes")}</span></button>` : ""}
           ${artists.length ? sel("filterArtist", "All artists", artists.map((a) => [a, a])) : ""}
           ${sel("filterForm", "All forms", forms.map((f) => [f, f]))}
           ${sel("filterTag", "All marks", TAGS)}
@@ -1033,7 +1038,7 @@ import {
         <span class="name">${esc(p.name)}</span>
         ${meta.length ? `<span class="meta">${meta.map(esc).join(" · ")}</span>` : ""}
         ${(st && st[0] !== "finished") || (p.tags || []).length || p.example ? `<span class="chips">${st && st[0] !== "finished" ? `<span class="chip prog">${esc(st[1])}</span>` : ""}${(p.tags || []).map((t) => `<span class="chip ${t === "favorite" ? "love" : t === "failed" ? "no" : ""}">${esc(tagLabel(t))}</span>`).join("")}${p.example ? `<span class="chip ex">Example</span>` : ""}</span>` : ""}
-        ${lines.length ? `<span class="gchips">${lines.map((l) => `<span class="gchip">${glazeThumb(glazeById(l.glazeId), "")}<span>${esc(lineName(l))}</span></span>`).join("")}</span>` : ""}
+        ${lines.length ? `<span class="gchips">${lines.map((l) => `<span class="gchip">${glazeThumb(glazeById(l.glazeId), "")}<span>${esc(lineLabel(l))}</span></span>`).join("")}</span>` : ""}
         ${p.notes ? `<span class="notes">${esc(p.notes)}</span>` : ""}
       </button>
     </article>`;
@@ -1044,7 +1049,7 @@ import {
     const list = state.glazes
       .filter((g) => !ft || typeOf(g) === ft)
       .filter((g) => !fr || (fr === "runner" ? g.runner : g.rating === fr))
-      .filter((g) => { if (!q) return true; const t = [g.name, g.brand, g.color, g.notes, g.description, g.where, g.recipe, typeLabel(g.type)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); })
+      .filter((g) => { if (!q) return true; const t = [g.code, g.code && g.code.replace(/[\s.-]/g, ""), g.name, g.brand, g.color, g.notes, g.description, g.where, g.recipe, typeLabel(g.type)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); })
       .sort(glazeSort);
     const TYPE_PLURAL = { glaze: "Glazes", underglaze: "Underglazes", stain: "Stains", lowfire: "Low-fire glazes", slip: "Slips", clay: "Clay bodies" };
     const types = SUPPLY_TYPES.filter(([k]) => state.glazes.some((g) => typeOf(g) === k));
@@ -1073,7 +1078,7 @@ import {
           ${src ? `<button type="button" class="pic" data-zoom-glaze="${esc(g.id)}" aria-label="See ${esc(g.name)} bigger"><img src="${esc(src)}" alt="" loading="lazy"></button>`
             : `<div class="pic"><div class="nopic">${POT_ICON}</div></div>`}
           <button type="button" class="body" data-glaze="${esc(g.id)}" aria-label="Open ${esc(g.name)}">
-            <span class="name">${esc(g.name)}</span>
+            <span class="name">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}</span>
             ${meta.length ? `<span class="meta">${meta.map(esc).join(" · ")}</span>` : ""}
             ${g.description || g.notes ? `<span class="notes">${esc(g.description || g.notes)}</span>` : ""}
             ${g.rating || g.runner || g.example ? `<span class="chips">${g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span>` : ""}${g.runner ? `<span class="chip no">Runner</span>` : ""}${g.example ? `<span class="chip ex">Example</span>` : ""}</span>` : ""}
@@ -1313,14 +1318,14 @@ import {
     const list = ov.querySelector(".picker-list"), q = ov.querySelector("input");
     const used = (g) => piecesWithGlaze(g.id).length;
     const row = (g) => `<button type="button" class="pick-row" data-id="${esc(g.id)}" aria-selected="${g.id === currentId}">${glazeThumb(g)}
-      <span class="nm">${esc(g.name)}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), g.runner ? "Runner" : "", used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span></span></button>`;
+      <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), g.runner ? "Runner" : "", used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span></span></button>`;
     const allRow = () => `<button type="button" class="pick-row" data-id="" aria-selected="${!currentId}"><span class="gdot" aria-hidden="true">★</span>
       <span class="nm">All glazes<span class="meta">Show every piece</span></span></button>`;
     const newRow = (name) => `<button type="button" class="pick-row" data-id="new" data-name="${esc(name)}"><span class="gdot" aria-hidden="true">+</span>
       <span class="nm">${name ? `Add “${esc(name)}” as a new glaze` : "New glaze (not in Glazes yet)"}<span class="meta">It's added to the Glazes tab when you save the piece</span></span></button>`;
     const draw = () => {
       const typed = q.value.trim(), t = typed.toLowerCase();
-      const hits = t ? glazes.filter((g) => [g.name, g.brand, g.color].some((s) => (s || "").toLowerCase().includes(t))) : glazes;
+      const hits = t ? glazes.filter((g) => [g.name, g.brand, g.color, g.code].some((s) => (s || "").toLowerCase().includes(t)) || (g.code && sameCode(g.code, t))) : glazes;
       const exact = glazeList().some((g) => (g.name || "").trim().toLowerCase() === t);
       list.innerHTML = (filter ? (typed ? "" : allRow()) : exact ? "" : newRow(typed))
         + hits.map(row).join("")
@@ -1571,9 +1576,9 @@ import {
               <span class="ord num" aria-hidden="true">${i + 1}</span>
               ${l.glazeId === "new"
                 ? `<input data-f="name" value="${esc(l.name)}" placeholder="New glaze name" ${TEXT_ATTRS} autocapitalize="words" aria-label="New glaze name">`
-                : `<button type="button" class="pick-btn" data-pick="${i}" aria-label="Glaze ${i + 1}: ${esc(g ? g.name : orphan ? l.name : "pick a glaze")}">
+                : `<button type="button" class="pick-btn" data-pick="${i}" aria-label="Glaze ${i + 1}: ${esc(g ? gLabel(g) : orphan ? l.name : "pick a glaze")}">
                     ${g ? glazeThumb(g) : `<span class="gdot" aria-hidden="true"></span>`}
-                    <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? g.name : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span></button>`}
+                    <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? gLabel(g) : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span></button>`}
               ${i > 0 ? `<button type="button" class="l-remove" data-up="${i}" aria-label="Move glaze ${i + 1} earlier" title="Move up">↑</button>` : ""}
               <button type="button" class="l-remove" data-rm="${i}" aria-label="Remove glaze ${i + 1}">×</button>
             </div>
@@ -1637,7 +1642,7 @@ import {
           const extra = { coats: (l.coats || "").trim(), method: (l.method || "").trim(), where: (l.where || "").trim(), how: (l.how || "").trim() };
           if (l.glazeId === "new") {
             const nm = (l.name || "").trim(); if (!nm) continue;
-            let g = glazeByName(nm);
+            let g = glazeByName(nm) || state.glazes.find((x) => x.code && sameCode(x.code, nm));
             if (!g) { g = { id: uid(), name: nm, type: "glaze", brand: "", rating: "", notes: "", createdAt: Date.now() }; const { id, ...data } = g; await api.save("glazes", id, data); }
             out.push({ glazeId: g.id, name: g.name, ...extra });
           } else if (l.glazeId) out.push({ glazeId: l.glazeId, name: lineName(l), ...extra });
@@ -1687,7 +1692,8 @@ import {
             <p class="hint">A test tile, a swatch or the jar.</p>
             <input class="vh" type="file" id="g-file" accept="image/*" tabindex="-1" aria-hidden="true">
           </div>
-          <label class="f full">Name<input id="g-title" required value="${esc(g.name)}" placeholder="e.g. Floating Blue" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f">Name<input id="g-title" required value="${esc(g.name)}" placeholder="e.g. Floating Blue" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f">Code<input id="g-code" value="${esc(g.code || "")}" placeholder="e.g. PC-46" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters"></label>
           <label class="f">Kind<select id="g-type">${SUPPLY_TYPES.map(([k, l]) => `<option value="${k}"${k === typeOf(g) ? " selected" : ""}>${l}</option>`).join("")}</select></label>
           <div class="f full"><span>Did you like it?</span>${pillSet("g-rating", RATINGS, [g.rating || ""], { single: true, label: "Did you like it?" })}</div>
         </div>
@@ -1736,12 +1742,15 @@ import {
         const v = (id) => el.querySelector("#" + id).value.trim();
         const name = v("g-title");
         if (!name) { el.querySelector("#g-title").focus(); toast("Give it a name.", "warn"); return; }
-        const clash = glazeByName(name);
-        if (clash && clash.id !== g.id) { el.querySelector("#g-title").focus(); toast(`There's already one called ${clash.name}.`, "warn"); return; }
+        const code = v("g-code");
+        const clash = state.glazes.find((x) => x.id !== g.id && (x.name || "").trim().toLowerCase() === name.toLowerCase() && (!code || !x.code || sameCode(x.code, code)));
+        if (clash) { el.querySelector(code ? "#g-title" : "#g-code").focus(); toast(code ? `There's already a ${gLabel(clash)}.` : `There's already one called ${clash.name}. Give this one its code to tell them apart.`, "warn"); return; }
+        const twin = code && state.glazes.find((x) => x.id !== g.id && x.code && sameCode(x.code, code));
+        if (twin && !confirm(`${twin.code} is already used for ${twin.name}. Save anyway?`)) { el.querySelector("#g-code").focus(); return; }
         if (photo && !photo.src && !photo.id) { toast("The photo is still loading. Try again in a moment.", "warn"); return; }
         const type = kind.value;
         const data = {
-          name, type, brand: v("g-brand"), size: v("g-size"), price: v("g-price").replace(/^\$/, ""), where: v("g-where"),
+          code,           name, type, brand: v("g-brand"), size: v("g-size"), price: v("g-price").replace(/^\$/, ""), where: v("g-where"),
           color: v("g-color"), cone: v("g-cone"), bisque: v("g-bisque"),
           clayType: type === "clay" ? "" : v("g-clay"), runner: type !== "clay" && readPills(el, "g-runner").includes("yes"), shrinkage: type === "clay" ? v("g-shrink") : "",
           rating: readPills(el, "g-rating")[0] || "", description: v("g-desc"), recipe: v("g-recipe"), notes: v("g-notes"),
@@ -1788,10 +1797,10 @@ import {
     downloadFile(toCSV(rows), `pottery-pieces-${todayStr()}.csv`);
   }
   function downloadGlazes() {
-    const rows = [["Name", "Kind", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp", "Clay it works on", "Runner", "Shrinkage (%)",
+    const rows = [["Code", "Name", "Kind", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp", "Clay it works on", "Runner", "Shrinkage (%)",
       "Liked it?", "Description", "Recipe", "Notes", "Pieces used on"]];
     for (const g of state.glazes.slice().sort(glazeSort)) {
-      rows.push([g.name, typeLabel(g.type), g.brand, g.color, g.size, g.price, g.where, g.cone, g.bisque, g.clayType, g.runner ? "Yes" : "", g.shrinkage,
+      rows.push([g.code, g.name, typeLabel(g.type), g.brand, g.color, g.size, g.price, g.where, g.cone, g.bisque, g.clayType, g.runner ? "Yes" : "", g.shrinkage,
         ratingLabel(g.rating), g.description, g.recipe, g.notes, (isClay(g) ? piecesWithClay(g.name) : piecesWithGlaze(g.id)).length]);
     }
     downloadFile(toCSV(rows), `pottery-supplies-${todayStr()}.csv`);
