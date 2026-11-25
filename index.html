@@ -1004,7 +1004,7 @@ import {
           ${sel("filterTag", "All marks", TAGS)}
           ${sel("filterStatus", "Any status", [["progress", "In progress"], ["finished", "Finished"]])}
         </div>` : ""}
-        <div class="count num">${filtered ? `Showing ${list.length} of ${state.pieces.length} · <button class="linkbtn" data-act="clear-filters" type="button" style="padding:0">Show all</button> · ` : ""}${state.pieces.length ? `<button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
+        <div class="count num">${filtered ? `Showing ${list.length} of ${state.pieces.length} · <button class="linkbtn" data-act="clear-filters" type="button" style="padding:0">Show all</button> · ` : ""}${state.pieces.length && canEdit() ? `<button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards">${list.map(pieceCard).join("")}</div>`
         : `<section class="panel"><div class="empty">${state.pieces.length ? "No pieces match. Try another search or filter." : "No pieces yet. Tap “Add piece” to record a piece with its photos, glazes and notes."}</div></section>`}`;
@@ -1020,7 +1020,7 @@ import {
       return `<button type="button" class="slide" data-zoom-piece="${esc(p.id)}" data-i="${i}" aria-label="See ${bottom ? "the bottom" : `photo ${i + 1}`} of ${esc(p.name)} bigger">${src ? `<img src="${esc(src)}" alt="">` : `<img data-pid="${esc(id)}" alt="">`}${bottom ? `<span class="tagb">Bottom</span>` : ""}</button>`;
     }).join("");
     const status = st ? (st[0] === "finished" ? dateLabel(p.date) : "") : "";
-    const meta = [[p.form, p.size].filter(Boolean).join(", "), status, p.clay, priceRange(p)].filter(Boolean);
+    const meta = [[p.form, p.size].filter(Boolean).join(", "), status, p.clay, canEdit() ? priceRange(p) : ""].filter(Boolean);
     return `<article class="card">
       ${ids.length ? `<div class="pic"><div class="strip" data-strip="${esc(p.id)}">${slides}</div>
           ${ids.length > 1 ? `<button type="button" class="sarr l" data-sarr="-1" aria-label="Previous photo">‹</button><button type="button" class="sarr r" data-sarr="1" aria-label="Next photo">›</button><span class="more num" data-strip-n>${at + 1} / ${ids.length}</span>` : ""}</div>`
@@ -1060,7 +1060,7 @@ import {
           ${RATINGS.map(([k, label]) => `<button type="button" data-rating="${k}" aria-pressed="${fr === k}">${label}</button>`).join("")}
           <button type="button" data-rating="runner" aria-pressed="${fr === "runner"}">Runners</button>
         </div>
-        <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""}</div>
+        <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${state.glazes.length && canEdit() ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards glz">${list.map((g) => {
         const clay = isClay(g), n = clay ? piecesWithClay(g.name).length : used.get(g.id) || 0, src = glazePhoto(g);
@@ -1477,9 +1477,9 @@ import {
             <label class="f full">Firing type${choice("p-firing", FIRINGS, p.firing || "", "e.g. Pit fired")}</label>
             ${textIn("p-bisque", "Bisque temp / cone", p.bisqueTemp, "e.g. Cone 04")}
             ${textIn("p-gfire", "Glaze firing temp / cone", p.fireTemp, "e.g. Cone 6")}`)}
-          ${sect("price", "Price range", `
+          ${canEdit() ? sect("price", "Price range", `
             ${numIn("p-price-lo", "Low ($)", p.priceLow, "e.g. 20", { pre: "$" })}
-            ${numIn("p-price-hi", "High ($)", p.priceHigh, "e.g. 30", { pre: "$" })}`)}
+            ${numIn("p-price-hi", "High ($)", p.priceHigh, "e.g. 30", { pre: "$" })}`) : ""}
           ${sect("notes", "My comments", `
             <label class="f full">About this piece<textarea id="p-notes" rows="5" placeholder="How it turned out, what worked, what to try next time" ${TEXT_ATTRS} autocapitalize="sentences">${esc(p.notes)}</textarea></label>`)}
         </div>
@@ -1670,7 +1670,7 @@ import {
           ${sect("buy", "Buying", `
             ${textIn("g-brand", "Manufacturer / supplier", g.brand, "e.g. Amaco Potter's Choice", { full: true })}
             ${textIn("g-size", "Size", g.size, "e.g. 1 pint, 25 lb")}
-            ${numIn("g-price", "Price ($)", g.price, "e.g. 18.99", { pre: "$" })}
+            ${canEdit() ? numIn("g-price", "Price ($)", g.price, "e.g. 18.99", { pre: "$" }) : ""}
             ${textIn("g-where", "Best place to buy", g.where, "e.g. the clay store on Main", { full: true })}`)}
           ${sect("fire", "Color and firing", `
             ${textIn("g-color", "Color", g.color, "e.g. Blue, speckled tan")}
