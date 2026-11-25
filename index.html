@@ -333,6 +333,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 .pp-list { display: grid; gap: 8px; margin-bottom: 18px; }
 .pp-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .pp-who { display: grid; min-width: 0; }
+.pp-who.linkish { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .pp-who b { overflow-wrap: anywhere; }
 .pp-who small { color: var(--muted); overflow-wrap: anywhere; }
 .pp-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -434,7 +435,7 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
   const local = { pieces: [], glazes: [], settings: {}, photos: {} };
@@ -803,7 +804,7 @@ import {
           clay: "Speckled Buff", clayKind: "new", clayGrams: "1400", firing: "Oxidation", bisqueTemp: "Cone 04", fireTemp: "Cone 6", priceLow: "45", priceHigh: "60",
           glazes: [{ glazeId: "g1", name: "Floating Blue", coats: "3", method: "Brushed", where: "Inside and out", how: "" }],
           notes: "Gift for Aunt Jo. The speckles came through the blue nicely.", photoIds: [pic("bowl", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 4e6, example: true },
-        { id: "p2", name: "Tall bud vase", form: "Vase", size: "M", techniques: ["Wheel thrown", "Altered"], tags: ["runner", "failed"], date: d(25), stages: { thrown: d(50), bisqued: d(40), glazed: d(30) },
+        { id: "p2", name: "Tall bud vase", artist: "Sarah", form: "Vase", size: "M", techniques: ["Wheel thrown", "Altered"], tags: ["runner", "failed"], date: d(25), stages: { thrown: d(50), bisqued: d(40), glazed: d(30) },
           clay: "B-Mix", clayKind: "recycled", firing: "Reduction", fireTemp: "Cone 10", layering: "Overlapping randomly",
           glazes: [{ glazeId: "g2", name: "Celadon", coats: "1", method: "Dipped", where: "Whole piece", how: "4 seconds" }, { glazeId: "g3", name: "Iron Red", coats: "2", method: "Poured", where: "Top 2/3", how: "" }],
           notes: "Iron Red ran down and glued it to the shelf. Ground the foot.", photoIds: [pic("vase", "#9DBFA6", "#C9B49A", "#7A2E1C"), pic("vase", "#7A2E1C", "#C9B49A", "#9DBFA6")], createdAt: now - 3e6, example: true },
@@ -972,7 +973,7 @@ import {
 
   // Everything a piece can be found by: its fields, its glazes' names, colors and makers, and how they went on
   function pieceText(p) {
-    return [p.name, p.notes, p.clay, p.form, p.size, p.layering, p.glazeNotes, p.decorTech, p.tools, p.firing, p.slab,
+    return [p.name, p.artist, p.notes, p.clay, p.form, p.size, p.layering, p.glazeNotes, p.decorTech, p.tools, p.firing, p.slab,
       ...(p.techniques || []), ...(p.decor || []), ...(p.tags || []).map(tagLabel), (statusOf(p) || [])[1],
       ...(p.glazes || []).flatMap((l) => { const g = glazeById(l.glazeId); return [lineName(l), l.how, l.where, l.method, g && g.color, g && g.brand]; }),
     ].filter(Boolean).join(" ").toLowerCase();
@@ -980,16 +981,18 @@ import {
 
   function piecesHTML() {
     const q = state.search.trim().toLowerCase(), fg = glazeById(state.filterGlaze);
-    const { filterForm: ff, filterTag: ft, filterStatus: fs_ } = state;
+    const { filterForm: ff, filterTag: ft, filterStatus: fs_, filterArtist: fa } = state;
     const list = state.pieces
       .filter((p) => !fg || (p.glazes || []).some((l) => l.glazeId === fg.id))
       .filter((p) => !ff || (p.form || "") === ff)
+      .filter((p) => !fa || (p.artist || "").trim() === fa)
       .filter((p) => !ft || (p.tags || []).includes(ft))
       .filter((p) => !fs_ || (fs_ === "finished") === !!p.date)
       .filter((p) => { if (!q) return true; const t = pieceText(p); return q.split(/\s+/).every((w) => t.includes(w)); })
       .sort(pieceSort);
     const forms = [...new Set([...FORMS.filter((f) => state.pieces.some((p) => p.form === f)), ...state.pieces.map((p) => p.form).filter(Boolean)])];
-    const filtered = !!(fg || q || ff || ft || fs_);
+    const artists = [...new Set(state.pieces.map((p) => (p.artist || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const filtered = !!(fg || q || ff || ft || fs_ || fa);
     const sel = (key, all, opts) => `<select data-filter="${key}" aria-label="${esc(all)}"><option value="">${esc(all)}</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${state[key] === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     return `
       <section class="panel">
@@ -1000,6 +1003,7 @@ import {
         ${state.pieces.length ? `<div class="filters">
           ${glazeList().length ? `<button type="button" class="pick-btn" data-act="filter-glaze" aria-label="Show pieces with glaze: ${esc(fg ? fg.name : "All glazes")}">
             ${fg ? glazeThumb(fg) : `<span class="gdot" aria-hidden="true">★</span>`}<span class="nm">${esc(fg ? fg.name : "All glazes")}</span></button>` : ""}
+          ${artists.length ? sel("filterArtist", "All artists", artists.map((a) => [a, a])) : ""}
           ${sel("filterForm", "All forms", forms.map((f) => [f, f]))}
           ${sel("filterTag", "All marks", TAGS)}
           ${sel("filterStatus", "Any status", [["progress", "In progress"], ["finished", "Finished"]])}
@@ -1020,7 +1024,7 @@ import {
       return `<button type="button" class="slide" data-zoom-piece="${esc(p.id)}" data-i="${i}" aria-label="See ${bottom ? "the bottom" : `photo ${i + 1}`} of ${esc(p.name)} bigger">${src ? `<img src="${esc(src)}" alt="">` : `<img data-pid="${esc(id)}" alt="">`}${bottom ? `<span class="tagb">Bottom</span>` : ""}</button>`;
     }).join("");
     const status = st ? (st[0] === "finished" ? dateLabel(p.date) : "") : "";
-    const meta = [[p.form, p.size].filter(Boolean).join(", "), status, p.clay, canEdit() ? priceRange(p) : ""].filter(Boolean);
+    const meta = [p.artist ? `By ${p.artist}` : "", [p.form, p.size].filter(Boolean).join(", "), status, p.clay, canEdit() ? priceRange(p) : ""].filter(Boolean);
     return `<article class="card">
       ${ids.length ? `<div class="pic"><div class="strip" data-strip="${esc(p.id)}">${slides}</div>
           ${ids.length > 1 ? `<button type="button" class="sarr l" data-sarr="-1" aria-label="Previous photo">‹</button><button type="button" class="sarr r" data-sarr="1" aria-label="Next photo">›</button><span class="more num" data-strip-n>${at + 1} / ${ids.length}</span>` : ""}</div>`
@@ -1083,6 +1087,10 @@ import {
   // ---------- People ----------
   const ROLES = [["full", "Full access"], ["student", "Student (view only)"]];
   const canEdit = () => !fs || state.role === "full";
+  // Who made a piece: anyone on the People list, plus any name already typed on a piece (people who don't use the app)
+  const personName = (m) => (m.name || "").trim() || (m.email || "").split("@")[0];
+  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
   // New logins are made with a second, separate sign-in so making one doesn't sign her out
   let adderAuth = null;
   function getAdder() {
@@ -1098,7 +1106,7 @@ import {
     const me = state.me && state.me.uid;
     const members = state.members.slice().sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : (a.name || a.email || "").localeCompare(b.name || b.email || "")));
     el.querySelector("#pp-list").innerHTML = members.map((m) => `<div class="pp-row">
-        <div class="pp-who"><b>${esc(m.name || m.email)}</b>${m.name ? `<small>${esc(m.email)}</small>` : ""}</div>
+        <button type="button" class="pp-who linkish" data-rename="${esc(m.id)}" aria-label="Change the name for ${esc(m.name || m.email)}"><b>${esc(m.name || m.email)}</b><small>${m.name ? esc(m.email) + " · " : ""}Tap to ${m.name ? "change" : "add"} name</small></button>
         ${m.id === me ? `<span class="chip">You · Full access</span>`
           : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${ROLES.map(([k, l]) => `<option value="${k}"${(m.role || "full") === k ? " selected" : ""}>${l}</option>`).join("")}</select>
              <button type="button" class="btn small danger" data-remove="${esc(m.id)}">Remove</button></div>`}
@@ -1148,6 +1156,20 @@ import {
         catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); refreshPeople(); }
       });
       el.addEventListener("click", async (e) => {
+        const rn = e.target.closest("[data-rename]");
+        if (rn) {
+          const m = state.members.find((x) => x.id === rn.dataset.rename); if (!m) return;
+          const old = personName(m), name = (prompt("Name (it shows up as an artist on pieces):", m.name || "") ?? "").trim();
+          if (!name || name === m.name) return;
+          try {
+            const b = writeBatch(fs);
+            b.update(memberRef(m.id), { name });
+            // Pieces already marked with their old name follow the new one
+            state.pieces.filter((p) => p.artist === old).forEach((p) => b.update(doc(fs, "studio", "shared", "pieces", p.id), { artist: name }));
+            await b.commit(); toast("Name saved", "ok");
+          } catch (ex) { console.error(ex); toast("Couldn't change the name. Try again.", "err"); }
+          return;
+        }
         const let_ = e.target.closest("[data-let]"), no = e.target.closest("[data-decline]");
         if (let_) {
           const r = state.requests.find((x) => x.id === let_.dataset.let); if (!r) return;
@@ -1420,6 +1442,8 @@ import {
     // Each line is { glazeId, name, coats, method, where, how }, in the order they went on; glazeId "new" = typing a new glaze
     let lines = (p.glazes || []).map((l) => ({ ...l }));
     const clayList = clays();
+    const artistList = artistNames();
+    if (isNew && !p.artist && myName()) p = { ...p, artist: myName() };
     if (p.clay && !clayList.includes(p.clay)) clayList.push(p.clay);
     const dateIn = ([k, label]) => `<label class="f">${label}<input type="date" id="p-st-${k}" value="${esc(stageDate(p, k))}"></label>`;
 
@@ -1442,6 +1466,7 @@ import {
         </div>
         <div class="sects">
           ${sect("about", "About the piece", `
+            <label class="f full">Artist (who made it)${choice("p-artist", artistList, p.artist || "", "Their name")}</label>
             <label class="f">Form${choice("p-form", FORMS, p.form || "", "e.g. Butter dish")}</label>
             <div class="f"><span>Size</span>${pillSet("p-size", SIZES, [p.size || ""], { single: true, label: "Size" })}</div>
             <div class="f full"><span>Technique</span>${pillSet("p-tech", TECHNIQUES, p.techniques || [], { label: "Technique" })}</div>
@@ -1623,7 +1648,7 @@ import {
         const photoIds = photos.map((ph) => ph.id || storePhoto(ph.src));
         const bottomPhotoId = bottom ? bottom.id || storePhoto(bottom.src) : "";
         const data = {
-          name, date: v("p-st-finished"), stages,
+          name, artist: readChoice(el, "p-artist"), date: v("p-st-finished"), stages,
           form: readChoice(el, "p-form"), size: readPills(el, "p-size")[0] || "", techniques: readPills(el, "p-tech"), slab: v("p-slab"), tags: readPills(el, "p-tags"),
           clay, clayKind: readPills(el, "p-clay-kind")[0] || "", clayGrams: v("p-grams"), weight: v("p-weight"), dimBefore: v("p-dim-before"), dimAfter: v("p-dim-after"), volumeOz: v("p-volume"),
           glazes: out, layering: readChoice(el, "p-layering"), glazeNotes: v("p-gnotes"), decor: readPills(el, "p-decor"), decorTech: v("p-dtech"), tools: v("p-tools"),
@@ -1751,11 +1776,11 @@ import {
     return rows.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
   };
   function downloadPieces() {
-    const rows = [["Name", "Form", "Size", "Status", ...STAGES.map(([, l]) => l), "Technique", "Marked as", "Slab thickness", "Clay body", "New or recycled", "Clay used (g)", "Weight",
+    const rows = [["Name", "Artist", "Form", "Size", "Status", ...STAGES.map(([, l]) => l), "Technique", "Marked as", "Slab thickness", "Clay body", "New or recycled", "Clay used (g)", "Weight",
       "Size before firing", "Size after firing", "Holds (oz)", "Glazes (in order)", "Layering technique", "Glaze description", "Decorations", "Decorative techniques", "Tools used",
       "Firing type", "Bisque temp", "Glaze firing temp", "Price low", "Price high", "My comments", "Photos"]];
     for (const p of state.pieces.slice().sort(pieceSort)) {
-      rows.push([p.name, p.form, p.size, (statusOf(p) || [, ""])[1], ...STAGES.map(([k]) => stageDate(p, k)), (p.techniques || []).join("; "), (p.tags || []).map(tagLabel).join("; "), p.slab,
+      rows.push([p.name, p.artist, p.form, p.size, (statusOf(p) || [, ""])[1], ...STAGES.map(([k]) => stageDate(p, k)), (p.techniques || []).join("; "), (p.tags || []).map(tagLabel).join("; "), p.slab,
         p.clay, p.clayKind, p.clayGrams, p.weight, p.dimBefore, p.dimAfter, p.volumeOz,
         (p.glazes || []).map((l, i) => `${i + 1}. ${lineText(l)}`).join("; "), p.layering, p.glazeNotes, (p.decor || []).join("; "), p.decorTech, p.tools,
         p.firing, p.bisqueTemp, p.fireTemp, p.priceLow, p.priceHigh, p.notes, piecePhotoIds(p).length]);
@@ -1800,7 +1825,7 @@ import {
     if (t.closest("[data-act='clear-examples']")) return clearExamples();
     if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
     if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
-    if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "" }); return render(); }
+    if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "" }); return render(); }
     if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
     const sa = t.closest("[data-sarr]");
     if (sa) {
