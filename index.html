@@ -2340,6 +2340,8 @@ import {
 (function () {
   var MIN_GAP = 2 * 60 * 1000, lastCheck = 0, checking = false, waiting = false;
   var here = Date.parse(document.lastModified);
+  // Tidy the ?v=... back off the address after an update, so it doesn't end up in bookmarks or shared links
+  try { var cur = new URL(location.href); if (cur.searchParams.has("v")) { cur.searchParams.delete("v"); history.replaceState(history.state, "", cur.pathname + cur.search + cur.hash); } } catch (e) {}
   if (location.protocol !== "https:" && location.hostname !== "localhost") return;
   function busy() {
     var sheet = document.getElementById("sheet-root");
@@ -2360,7 +2362,10 @@ import {
       if (tried === String(there)) return; // already reloaded for this version once; don't loop
       if (busy()) { lastCheck = 0; waiting = true; return; } // try again when the popup closes or next time
       try { sessionStorage.setItem("ver-reload", String(there)); } catch (e) {}
-      location.reload();
+      // A plain reload in the iPhone home-screen app can show the copy it already has. Asking for the page at a
+      // new address (?v=...) can't be answered from that copy, so the new version actually loads.
+      var u = new URL(location.href); u.searchParams.set("v", String(there));
+      location.replace(u.toString());
     }).catch(function () {}).then(function () { checking = false; });
   }
   document.addEventListener("visibilitychange", check);
