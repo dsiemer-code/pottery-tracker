@@ -1132,6 +1132,18 @@ import {
     const tries = [parts[0], parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}` : "", parts.join(" ")].filter(Boolean);
     return tries.find((t) => !nameTaken(t, exceptId)) || parts.join(" ");
   }
+  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
+  const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
+  // New logins are made with a second, separate sign-in so making one doesn't sign her out
+  let adderAuth = null;
+  function getAdder() {
+    if (!adderAuth) adderAuth = initializeAuth(initializeApp(firebaseConfig, "adder"), { persistence: inMemoryPersistence });
+    return adderAuth;
+  }
+  const appLink = () => location.origin + location.pathname;
+  const memberRef = (uid) => doc(fs, "studio", "shared", "members", uid);
+  const requestRef = (uid) => doc(fs, "studio", "shared", "requests", uid);
+
   // Changing someone's names, in a popup like the rest of the app
   function personNameSheet(m) {
     const isMe = state.me && m.id === state.me.uid;
