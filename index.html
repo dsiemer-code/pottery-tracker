@@ -114,7 +114,7 @@ button.pic { cursor: zoom-in; }
 .card .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .card .pic .nopic { position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent); opacity: .55; }
 .card .pic .more { position: absolute; right: 8px; bottom: 8px; background: rgba(20,14,10,.6); color: #fff; font-size: .75rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-.card .body { padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; align-content: start; flex: 1;
+.card .body { padding: 12px 14px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; align-content: start; flex: 1;
   border: 0; background: none; text-align: left; width: 100%; color: inherit; }
 button.body { cursor: pointer; }
 button.body:hover .name { color: var(--accent); }
