@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
+<meta name="app-build" content="2026-11-26T19:58:01Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -449,10 +450,10 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
         <span class="title-stack">Pottery Tracker<span class="ver" id="app-ver"></span></span>
       </h1>
       <script>
-        // Version = when this copy of the page was published (GitHub Pages sends it as Last-Modified), in local time.
-        // It changes by itself on every update, so there's nothing to bump by hand.
+        // Version = when this copy was committed (stamped into <meta name="app-build"> by .githooks/pre-commit), in local time.
         (function () {
-          var d = new Date(document.lastModified); if (isNaN(d)) return;
+          var b = (document.querySelector('meta[name="app-build"]') || {}).content;
+          var d = new Date(b || document.lastModified); if (isNaN(d)) return;
           var p = function (n) { return String(n).padStart(2, "0"); };
           var el = document.getElementById("app-ver");
           el.textContent = "v" + d.getFullYear() + "." + p(d.getMonth() + 1) + "." + p(d.getDate()) + "." + p(d.getHours()) + p(d.getMinutes());
@@ -2427,15 +2428,16 @@ import {
 })();
 </script>
 <script>
-// Auto-update: when she comes back to the app (and every 15 minutes while it's open), ask GitHub Pages
-// whether a newer copy of this page has been published. If so, reload, but only when nothing is in
-// progress: no popup or photo open and no box being typed in. Otherwise it waits for the next check.
+// Auto-update: every commit writes a build stamp into this page and into version.json (see .githooks/pre-commit).
+// When she comes back to the app, and every minute while it's open, fetch the tiny version.json fresh from GitHub
+// and compare. If it's newer, reload, but only when nothing is in progress: no popup or photo open and no box being
+// typed in. Otherwise it waits until the popup closes or the next check.
 (function () {
-  var MIN_GAP = 2 * 60 * 1000, lastCheck = 0, checking = false, waiting = false;
-  var here = Date.parse(document.lastModified);
+  var MIN_GAP = 20 * 1000, lastCheck = 0, checking = false, waiting = false;
+  var here = (document.querySelector('meta[name="app-build"]') || {}).content || "";
   // Tidy the ?v=... back off the address after an update, so it doesn't end up in bookmarks or shared links
   try { var cur = new URL(location.href); if (cur.searchParams.has("v")) { cur.searchParams.delete("v"); history.replaceState(history.state, "", cur.pathname + cur.search + cur.hash); } } catch (e) {}
-  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  if (!here || (location.protocol !== "https:" && location.hostname !== "localhost")) return;
   function busy() {
     var sheet = document.getElementById("sheet-root");
     if (sheet && sheet.children.length) return true;
@@ -2446,28 +2448,30 @@ import {
   function check() {
     if (checking || document.hidden || !navigator.onLine || Date.now() - lastCheck < MIN_GAP) return;
     checking = true; lastCheck = Date.now();
-    // "reload" skips the phone's saved copy and refreshes it, so the reload below gets the new page
-    fetch(location.pathname, { cache: "reload" }).then(function (r) {
-      var there = Date.parse(r.headers.get("Last-Modified") || "");
-      if (!r.ok || isNaN(there) || isNaN(here) || there - here < 1000) return;
+    // A new address every time, and no-store, so neither the phone nor GitHub's servers answer with an old copy
+    fetch("version.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      var there = j && j.build;
+      if (!there || there <= here) return;
       var tried = "";
       try { tried = sessionStorage.getItem("ver-reload") || ""; } catch (e) {}
-      if (tried === String(there)) return; // already reloaded for this version once; don't loop
-      if (busy()) { lastCheck = 0; waiting = true; return; } // try again when the popup closes or next time
-      try { sessionStorage.setItem("ver-reload", String(there)); } catch (e) {}
+      if (tried === there) return; // already reloaded for this version once and still got the old page; don't loop
+      if (busy()) { waiting = true; return; } // try again when the popup closes or next time
+      try { sessionStorage.setItem("ver-reload", there); } catch (e) {}
       // A plain reload in the iPhone home-screen app can show the copy it already has. Asking for the page at a
       // new address (?v=...) can't be answered from that copy, so the new version actually loads.
-      var u = new URL(location.href); u.searchParams.set("v", String(there));
+      var u = new URL(location.href); u.searchParams.set("v", there.replace(/\D/g, ""));
       location.replace(u.toString());
     }).catch(function () {}).then(function () { checking = false; });
   }
   document.addEventListener("visibilitychange", check);
   window.addEventListener("focus", check);
   window.addEventListener("pageshow", check);
-  setInterval(check, 15 * 60 * 1000);
+  window.addEventListener("online", check);
+  setInterval(check, 60 * 1000);
+  setTimeout(check, 3000);
   var sheetRoot = document.getElementById("sheet-root");
   if (sheetRoot && window.MutationObserver) new MutationObserver(function () {
-    if (waiting && !sheetRoot.children.length) { waiting = false; setTimeout(check, 800); }
+    if (waiting && !sheetRoot.children.length) { waiting = false; lastCheck = 0; setTimeout(check, 800); }
   }).observe(sheetRoot, { childList: true });
 })();
 </script>

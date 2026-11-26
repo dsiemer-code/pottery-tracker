@@ -98,3 +98,7 @@ Modules don't load from `file://`, so serve the folder:
 python -m http.server 8000
 ```
 then open http://localhost:8000. `localhost` is already an authorized domain in Firebase.
+
+## Updates
+
+Each commit stamps a build time into `index.html` and `version.json` (via `.githooks/pre-commit`). Open copies of the app check `version.json` about once a minute and reload when it changes. After cloning, turn the hook on once with `git config core.hooksPath .githooks`.

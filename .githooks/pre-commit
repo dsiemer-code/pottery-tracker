@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stamp every commit with a build time, so open copies of the app can tell a new version is out.
+# index.html carries it in <meta name="app-build">; version.json holds the same stamp for the app to check.
+# Turn on once per clone with:  git config core.hooksPath .githooks
+V=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+sed -i "s|<meta name=\"app-build\" content=\"[^\"]*\">|<meta name=\"app-build\" content=\"$V\">|" index.html || exit 1
+grep -q "<meta name=\"app-build\" content=\"$V\">" index.html || { echo "pre-commit: couldn't stamp index.html" >&2; exit 1; }
+printf '{"build":"%s"}\n' "$V" > version.json
+git add index.html version.json
