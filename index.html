@@ -68,6 +68,8 @@ header {
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+/* Wide browser windows: use the room for more cards per row (up to 1800px) */
+@media (min-width: 1200px) { .wrap { max-width: min(1800px, calc(100vw - 64px)); } }
 .head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 10px; }
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; margin: 0; display: flex; align-items: center; gap: 8px; }
 h1 svg { flex: none; }
@@ -298,6 +300,7 @@ button.vline { cursor: pointer; }
 .filters .pick-btn { grid-column: 1 / -1; }
 .filters select { min-height: 46px; padding-block: 8px; }
 @media (min-width: 760px) { .filters { grid-template-columns: 1.6fr 1fr 1fr 1fr; } .filters .pick-btn { grid-column: auto; } }
+@media (min-width: 1200px) { .filters { display: flex; flex-wrap: wrap; } .filters > * { flex: 1 1 160px; min-width: 0; } .filters .pick-btn { flex: 1.6 1 240px; } }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip.prog { background: var(--warn-soft); color: var(--warn); }
 
