@@ -1062,7 +1062,7 @@ import {
     const TYPE_PLURAL = { glaze: "Glazes", underglaze: "Underglazes", stain: "Stains", lowfire: "Low-fire glazes", slip: "Slips", clay: "Clay bodies" };
     const types = SUPPLY_TYPES.filter(([k]) => state.glazes.some((g) => typeOf(g) === k));
     const used = new Map();
-    for (const p of state.pieces) for (const l of p.glazes || []) used.set(l.glazeId, (used.get(l.glazeId) || 0) + 1);
+    for (const p of state.pieces) for (const id of new Set((p.glazes || []).map((l) => l.glazeId))) used.set(id, (used.get(id) || 0) + 1);
     return `
       <section class="panel">
         <div class="toolbar">
@@ -1607,7 +1607,7 @@ import {
         const row = linesBox.children[i];
         if (row && id === "new" && !typed) row.querySelector("[data-f=name]").focus();
         el.dispatchEvent(new Event("input"));
-      }, { skip: lines.map((l) => l.glazeId) });
+      });  // the same glaze can go on more than once (e.g. 3 coats outside, 1 inside)
       linesBox.addEventListener("input", (e) => {
         const row = e.target.closest(".gline"), f = e.target.dataset.f; if (!row || !f || e.target.tagName === "SELECT") return;
         lines[Number(row.dataset.i)][f] = e.target.value;
