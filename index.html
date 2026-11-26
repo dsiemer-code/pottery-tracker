@@ -1310,8 +1310,8 @@ import {
     if (navigator.standalone && navigator.share) { printBtn.hidden = true; shareBtn.textContent = "Print or share"; shareBtn.classList.remove("ghost"); }
     v.addEventListener("click", async (e) => {
       const b = e.target.closest("[data-sv]"); if (!b) return;
-      if (b.dataset.sv === "back") return v.remove();
-      if (b.dataset.sv === "print") { document.body.classList.add("printing-sign"); window.print(); setTimeout(() => document.body.classList.remove("printing-sign"), 500); return; }
+      if (b.dataset.sv === "back") { v.remove(); shareSheet(); return; }
+      if (b.dataset.sv === "print") { document.body.classList.add("printing-sign"); try { window.print(); } finally { setTimeout(() => document.body.classList.remove("printing-sign"), 500); } return; }
       if (b.dataset.sv === "share") {
         try {
           const blob = await (await fetch("share/sign.pdf")).blob();
@@ -2301,6 +2301,24 @@ import {
     if (a && typing.test(a.tagName) && inPopup(a)) a.scrollIntoView({ block: "center", behavior: "smooth" });
   }
   vv.addEventListener("resize", function () { fit(); setTimeout(reveal, 60); });
+  // After the iPhone share or print screen closes, a scrolling popup can stop responding to touch until it's re-laid out.
+  // Coming back to the app, nudge every scrolling popup so it scrolls again.
+  function unstick() {
+    fit();
+    document.querySelectorAll(".sheet, .picker-list, .sv-page").forEach(function (el) {
+      var top = el.scrollTop; el.style.overflow = "hidden"; void el.offsetHeight; el.style.overflow = ""; el.scrollTop = top;
+    });
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(unstick, 50); });
+  window.addEventListener("focus", function () { setTimeout(unstick, 50); });
+  window.addEventListener("pageshow", function () { setTimeout(unstick, 50); });
+  // Pinch-zooming in and back out can leave a popup unable to scroll too: once the zoom settles back to normal, nudge it
+  var zoomed = false, settle = 0;
+  vv.addEventListener("resize", function () {
+    if (vv.scale > 1.05) zoomed = true;
+    else if (zoomed) { clearTimeout(settle); settle = setTimeout(function () { zoomed = false; unstick(); }, 250); }
+  });
+  document.addEventListener("gestureend", function () { setTimeout(unstick, 300); });
   vv.addEventListener("scroll", fit);
   document.addEventListener("focusin", function (e) { if (typing.test(e.target.tagName) && inPopup(e.target)) setTimeout(function () { fit(); reveal(); }, 350); });
 })();
