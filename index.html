@@ -455,6 +455,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
     </div>
     <nav class="tabs" role="tablist" id="tabs" hidden>
       <button role="tab" aria-selected="true" data-tab="pieces">Pieces</button>
+      <button role="tab" aria-selected="false" data-tab="students">Student pieces</button>
       <button role="tab" aria-selected="false" data-tab="glazes">Glazes &amp; supplies</button>
     </nav>
   </div>
@@ -809,13 +810,14 @@ import {
     const id = uid();
     photoCache.set(id, src);
     if (!fs) local.photos[id] = src;
-    else write(() => setDoc(ref("photos", id), { data: src, createdAt: Date.now() }));
+    else write(() => setDoc(ref("photos", id), { data: src, by: uidPath || "", createdAt: Date.now() }));
     return id;
   }
   function dropPhoto(id) {
     if (!id) return;
     photoCache.delete(id);
     if (!fs) delete local.photos[id];
+    else if (!canEdit()) deleteDoc(ref("photos", id)).catch(() => {}); // a student can't remove a photo someone else added; leave it quietly
     else write(() => deleteDoc(ref("photos", id)));
   }
   const pieceIds = (p) => (Array.isArray(p.photoIds) ? p.photoIds : []);
@@ -889,6 +891,9 @@ import {
         { id: "p3", name: "Morning mug", form: "Mug", size: "M", techniques: ["Hand built", "Slab built"], slab: "1/4 inch", date: "", stages: { thrown: d(12), trimmed: d(11), bisqued: d(3) },
           clay: "B-Mix", clayKind: "recycled", clayGrams: "450", glazes: [],
           notes: "Handle a bit thick. Try pulling it thinner next time.", photoIds: [pic("mug", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 2e6, example: true },
+        { id: "p4", name: "First pinch pot", artist: "Maya", student: true, by: "demo-student", form: "Bowl", size: "S", techniques: ["Hand built"], date: d(2), stages: { bisqued: d(9), glazed: d(6) },
+          clay: "B-Mix", glazes: [{ glazeId: "g1", name: "Floating Blue", coats: "2", method: "Dipped", where: "Inside", how: "" }],
+          notes: "My first class piece.", photoIds: [pic("bowl", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 1e6, example: true },
       ];
       local.settings = {};
       setSync("Demo mode"); state.role = "full";
@@ -941,14 +946,15 @@ import {
 
     onAuthStateChanged(auth, (user) => {
       unsubs.forEach((u) => u()); unsubs = []; stopData();
-      state.role = null; state.me = null;
+      state.role = null; state.me = null; state.myDoc = null;
       if (!user) { uidPath = null; setSync(""); showApp(false); render(); return; }
       uidPath = user.uid; state.me = { uid: user.uid, email: user.email || "" };
       showApp(true); render();
       unsubs.push(onSnapshot(doc(fs, "studio", "shared", "members", user.uid), async (snap) => {
         if (snap.exists()) {
           const role = snap.data().role === "student" ? "student" : "full";
-          if (role !== state.role) { state.role = role; startData(); }
+          state.myDoc = { id: user.uid, ...snap.data() };
+          if (role !== state.role) { if (role === "student" && state.role === null) state.tab = "students"; state.role = role; startData(); }
           render(); return;
         }
         if (state.role) { stopData(); closeSheet(); }   // taken off the list while the app was open
@@ -1029,13 +1035,13 @@ import {
   // ---------- Render ----------
   function render() {
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
-    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : "Add piece";
+    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : state.tab === "students" ? (canEdit() ? "Add student piece" : "Add my piece") : "Add piece";
     const v = document.getElementById("view");
     const active = document.activeElement && document.activeElement.id;
     let caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
     const member = !fs || !!state.role, signedIn = !fs || !!state.me;
     document.getElementById("tabs").hidden = !signedIn || !member;
-    document.getElementById("fab").hidden = !signedIn || !canEdit();
+    document.getElementById("fab").hidden = !signedIn || !(canEdit() || (state.tab === "students" && state.role === "student"));
     document.getElementById("people").hidden = !signedIn || !canEdit();
     const pn = document.getElementById("people-n"); pn.hidden = !state.requests.length; pn.textContent = state.requests.length;
     if (fs && !state.me) { v.innerHTML = ""; return; }
@@ -1043,6 +1049,7 @@ import {
     let html = banners();
     if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
     else if (state.tab === "glazes") html += glazesHTML();
+    else if (state.tab === "students") html += piecesHTML(true);
     else html += piecesHTML();
     // Remember which card is at the top of the screen, so when the list changes (someone else adds or removes a piece)
     // that card stays exactly where it was instead of everything shifting under her
@@ -1091,10 +1098,11 @@ import {
     ].filter(Boolean).join(" ").toLowerCase();
   }
 
-  function piecesHTML() {
+  function piecesHTML(students = false) {
     const q = state.search.trim().toLowerCase(), fg = glazeById(state.filterGlaze);
     const { filterForm: ff, filterTag: ft, filterStatus: fs_, filterArtist: fa } = state;
-    const list = state.pieces
+    const all = state.pieces.filter((p) => !!p.student === students);
+    const list = all
       .filter((p) => !fg || (p.glazes || []).some((l) => l.glazeId === fg.id))
       .filter((p) => !ff || (p.form || "") === ff)
       .filter((p) => !fa || (p.artist || "").trim() === fa)
@@ -1102,8 +1110,8 @@ import {
       .filter((p) => !fs_ || (fs_ === "finished") === !!p.date)
       .filter((p) => { if (!q) return true; const t = pieceText(p); return q.split(/\s+/).every((w) => t.includes(w)); })
       .sort(pieceSort);
-    const forms = [...new Set([...FORMS.filter((f) => state.pieces.some((p) => p.form === f)), ...state.pieces.map((p) => p.form).filter(Boolean)])];
-    const artists = [...new Set(state.pieces.map((p) => (p.artist || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const forms = [...new Set([...FORMS.filter((f) => all.some((p) => p.form === f)), ...all.map((p) => p.form).filter(Boolean)])];
+    const artists = [...new Set(all.map((p) => (p.artist || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const filtered = !!(fg || q || ff || ft || fs_ || fa);
     const sel = (key, all, opts) => `<select data-filter="${key}" aria-label="${esc(all)}"><option value="">${esc(all)}</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${state[key] === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     return `
@@ -1111,7 +1119,8 @@ import {
         <div class="toolbar">
           <input class="search" id="q" type="search" placeholder="Search: mug, blue, frozen pond…" value="${esc(state.search)}" aria-label="Search pieces" autocomplete="off">
         </div>
-        ${state.pieces.length ? `<div class="filters">
+        ${students ? `<p class="hint" style="margin:0 0 8px">${state.role === "student" ? "Pieces made by students. Add your own with “Add my piece”; you can change only yours." : "Pieces students add themselves. Each student can change only their own."}</p>` : ""}
+        ${all.length ? `<div class="filters">
           ${glazeList().length ? `<button type="button" class="pick-btn" data-act="filter-glaze" aria-label="Show pieces with glaze: ${esc(fg ? gLabel(fg) : "All glazes")}">
             ${fg ? glazeThumb(fg) : `<span class="gdot" aria-hidden="true">★</span>`}<span class="nm">${esc(fg ? gLabel(fg) : "All glazes")}</span></button>` : ""}
           ${artists.length ? sel("filterArtist", "All artists", artists.map((a) => [a, a])) : ""}
@@ -1119,10 +1128,10 @@ import {
           ${sel("filterTag", "All marks", TAGS)}
           ${sel("filterStatus", "Any status", [["progress", "In progress"], ["finished", "Finished"]])}
         </div>` : ""}
-        <div class="count num">${filtered ? `Showing ${list.length} of ${state.pieces.length} · <button class="linkbtn" data-act="clear-filters" type="button" style="padding:0">Show all</button> · ` : ""}${state.pieces.length && canEdit() ? `<button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
+        <div class="count num">${filtered ? `Showing ${list.length} of ${all.length} · <button class="linkbtn" data-act="clear-filters" type="button" style="padding:0">Show all</button> · ` : ""}${state.pieces.length && canEdit() ? `<button class="linkbtn" data-act="csv-pieces" type="button" style="padding:0">Download backup</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards">${list.map(pieceCard).join("")}</div>`
-        : `<section class="panel"><div class="empty">${state.pieces.length ? "No pieces match. Try another search or filter." : "No pieces yet. Tap “Add piece” to record a piece with its photos, glazes and notes."}</div></section>`}`;
+        : `<section class="panel"><div class="empty">${all.length ? "No pieces match. Try another search or filter." : students ? (state.role === "student" ? "No student pieces yet. Tap “Add my piece” to add one with its photos, glazes and notes." : "No student pieces yet. Students can add their own from this tab.") : "No pieces yet. Tap “Add piece” to record a piece with its photos, glazes and notes."}</div></section>`}`;
   }
 
   function pieceCard(p) {
@@ -1203,6 +1212,9 @@ import {
   const shown = () => state.members.filter((m) => !m.hidden);
   const iAmAdmin = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return !!(m && m.hidden); };
   const canEdit = () => !fs || state.role === "full";
+  const myUid = () => (state.me && state.me.uid) || (fs ? "" : "demo");
+  // Full access changes any piece; a student changes only the student pieces they added
+  const canEditPiece = (p) => canEdit() || (state.role === "student" && !!p && !!p.student && !!p.by && p.by === myUid());
   // Who made a piece: anyone on the People list, plus any name already typed on a piece (people who don't use the app)
   // Each person has a full name and a short display name (e.g. "Jen", or "Jen H" when two people are called Jen).
   // The display name is what shows as artist and glaze owner, so it has to be unique.
@@ -1214,7 +1226,7 @@ import {
     return tries.find((t) => !nameTaken(t, exceptId)) || parts.join(" ");
   }
   const artistNames = () => [...new Set([...shown().map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
-  const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
+  const myName = () => { const m = (state.me && state.members.find((x) => x.id === state.me.uid)) || state.myDoc; return m ? personName(m) : ""; };
   // New logins are made with a second, separate sign-in so making one doesn't sign her out
   let adderAuth = null;
   function getAdder() {
@@ -1578,7 +1590,7 @@ import {
       const typed = q.value.trim(), t = typed.toLowerCase();
       const hits = t ? glazes.filter((g) => [g.name, g.brand, g.color, g.code, ...ownersOf(g)].some((s) => (s || "").toLowerCase().includes(t)) || (g.code && sameCode(g.code, t))) : glazes;
       const exact = glazeList().some((g) => (g.name || "").trim().toLowerCase() === t);
-      list.innerHTML = (filter ? (typed ? "" : allRow()) : exact ? "" : newRow(typed))
+      list.innerHTML = (filter ? (typed ? "" : allRow()) : exact || !canEdit() ? "" : newRow(typed))
         + hits.map(row).join("")
         + (hits.length ? "" : `<p class="pick-none">${typed ? `No glaze matches “${esc(typed)}”` : "No glazes here"}${state.pickOwner ? ` in ${state.pickOwner === STUDIO ? "Studio" : esc(state.pickOwner) + "'s"}. Try “Everyone's” above.` : "."}</p>`);
     };
@@ -1696,7 +1708,7 @@ import {
   const vSect = (title, inner) => (inner.trim() ? `<section class="vsect"><h4>${title}</h4>${inner}</section>` : "");
   const vList = (rows) => (rows.trim() ? `<dl class="vlist">${rows}</dl>` : "");
   const vText = (label, val) => (val ? `${label ? `<div class="vlabel">${label}</div>` : ""}<p class="vtext">${esc(val)}</p>` : "");
-  const viewActions = (editId) => `<div class="actions"><div class="right"><button class="btn ghost" type="button" data-v-close>Close</button>${canEdit() ? `<button class="btn" type="button" data-v-edit="${esc(editId)}">Edit</button>` : ""}</div></div>`;
+  const viewActions = (editId, can = canEdit()) => `<div class="actions"><div class="right"><button class="btn ghost" type="button" data-v-close>Close</button>${can ? `<button class="btn" type="button" data-v-edit="${esc(editId)}">Edit</button>` : ""}</div></div>`;
   function wireView(el, onEdit) {
     el.querySelector("[data-v-close]").addEventListener("click", closeSheet);
     const ed = el.querySelector("[data-v-edit]"); if (ed) ed.addEventListener("click", onEdit);
@@ -1732,7 +1744,7 @@ import {
       ${vSect("Firing", vList(vRow("Firing type", p.firing) + vRow("Bisque", p.bisqueTemp) + vRow("Glaze firing", p.fireTemp)))}
       ${canEdit() ? vSect("Price range", vList(vRow("Price", priceRange(p)))) : ""}
       ${vSect("Comments", vText("", p.notes))}
-      ${viewActions(p.id)}`, (el) => {
+      ${viewActions(p.id, canEditPiece(p))}`, (el) => {
       el.classList.add("view");
       wireView(el, () => pieceSheet(p));
       el.querySelectorAll("img[data-pid]").forEach(async (img) => { const src = await loadPhoto(img.dataset.pid); if (src) img.src = src; });
@@ -1768,9 +1780,10 @@ import {
     }, { big: true });
   }
 
-  function pieceSheet(p) {
+  function pieceSheet(p, { student = false } = {}) {
     const isNew = !p;
-    p = p || { name: "", date: "", clay: "", glazes: [], notes: "" };
+    p = p || { name: "", date: "", clay: "", glazes: [], notes: "", ...(student ? { student: true, by: myUid() } : {}) };
+    const mine = !canEdit(); // a student working on their own piece: their name is the artist, no new glazes or clays
     let photos = pieceIds(p).map((id) => ({ id, src: photoCache.get(id) || "" }));
     let bottom = p.bottomPhotoId ? { id: p.bottomPhotoId, src: photoCache.get(p.bottomPhotoId) || "" } : null;
     // Each line is { glazeId, name, coats, method, where, how }, in the order they went on; glazeId "new" = typing a new glaze
@@ -1782,7 +1795,7 @@ import {
     const dateIn = ([k, label]) => `<label class="f">${label}<input type="date" id="p-st-${k}" value="${esc(stageDate(p, k))}"></label>`;
 
     openSheet(`
-      <h3>${isNew ? "Add a piece" : "Edit piece"}</h3>
+      <h3>${isNew ? (p.student ? (mine ? "Add my piece" : "Add a student piece") : "Add a piece") : "Edit piece"}</h3>
       <form id="pform" novalidate>
         <div class="fgrid">
           <div class="full">
@@ -1800,7 +1813,7 @@ import {
         </div>
         <div class="sects">
           ${sect("about", "About the piece", `
-            <label class="f full">Artist (who made it)${choice("p-artist", artistList, p.artist || "", "Their name")}</label>
+            ${mine ? "" : `<label class="f full">Artist (who made it)${choice("p-artist", artistList, p.artist || "", "Their name")}</label>`}
             <label class="f">Form${choice("p-form", FORMS, p.form || "", "e.g. Butter dish")}</label>
             <div class="f"><span>Size</span>${pillSet("p-size", SIZES, [p.size || ""], { single: true, label: "Size" })}</div>
             <div class="f full"><span>Technique</span>${pillSet("p-tech", TECHNIQUES, p.techniques || [], { label: "Technique" })}</div>
@@ -1812,7 +1825,7 @@ import {
             <label class="f">Clay body<select id="p-clay">
               <option value="">Not recorded</option>
               ${clayList.map((c) => opt(c, p.clay)).join("")}
-              <option value="__new">+ New clay…</option>
+              ${mine ? "" : `<option value="__new">+ New clay…</option>`}
             </select></label>
             <div class="f"><span>New or recycled?</span>${pillSet("p-clay-kind", [["new", "New"], ["recycled", "Recycled"]], [p.clayKind || ""], { single: true, label: "New or recycled clay" })}</div>
             <label class="f full" id="p-clay-new-wrap" hidden>What's the new clay called?<input id="p-clay-new" placeholder="e.g. Speckled Buff" ${TEXT_ATTRS} autocapitalize="words"></label>
@@ -1979,22 +1992,23 @@ import {
             out.push({ glazeId: g.id, name: g.name, ...extra });
           } else if (l.glazeId) out.push({ glazeId: l.glazeId, name: lineName(l), ...extra });
         }
-        const v = (id) => el.querySelector("#" + id).value.trim();
+        const v = (id) => { const f = el.querySelector("#" + id); return f ? f.value.trim() : ""; };
         const stages = {};
         for (const [k] of STAGES) if (k !== "finished" && v("p-st-" + k)) stages[k] = v("p-st-" + k);
         const photoIds = photos.map((ph) => ph.id || storePhoto(ph.src));
         const bottomPhotoId = bottom ? bottom.id || storePhoto(bottom.src) : "";
         const data = {
-          name, artist: readChoice(el, "p-artist"), date: v("p-st-finished"), stages,
+          name, artist: mine ? myName() || p.artist || "" : readChoice(el, "p-artist"), date: v("p-st-finished"), stages,
           form: readChoice(el, "p-form"), size: readPills(el, "p-size")[0] || "", techniques: readPills(el, "p-tech"), slab: v("p-slab"), tags: readPills(el, "p-tags"),
           clay, clayKind: readPills(el, "p-clay-kind")[0] || "", clayGrams: v("p-grams"), weight: v("p-weight"), dimBefore: v("p-dim-before"), dimAfter: v("p-dim-after"), volumeOz: v("p-volume"),
           glazes: out, layering: readChoice(el, "p-layering"), glazeNotes: v("p-gnotes"), decor: readPills(el, "p-decor"), decorTech: v("p-dtech"), tools: v("p-tools"),
           firing: readChoice(el, "p-firing"), bisqueTemp: v("p-bisque"), fireTemp: v("p-gfire"),
-          priceLow: v("p-price-lo").replace(/^\$/, ""), priceHigh: v("p-price-hi").replace(/^\$/, ""),
+          priceLow: mine ? p.priceLow || "" : v("p-price-lo").replace(/^\$/, ""), priceHigh: mine ? p.priceHigh || "" : v("p-price-hi").replace(/^\$/, ""),
           notes: v("p-notes"), photoIds, bottomPhotoId,
           createdAt: p.createdAt || Date.now(),
         };
         if (p.example) data.example = true;
+        if (p.student) { data.student = true; data.by = p.by || myUid(); }
         const ok = await api.save("pieces", p.id || uid(), data);
         if (ok) {
           const keep = [...photoIds, bottomPhotoId];
@@ -2005,7 +2019,7 @@ import {
       if (!isNew) armDelete(el.querySelector("#p-del"), "Delete", async () => {
         if (await api.remove("pieces", p.id)) { piecePhotoIds(p).forEach(dropPhoto); closeSheet(); toast("Piece deleted", "ok"); }
       });
-    }, { big: true, ro: !canEdit() });
+    }, { big: true, ro: !canEditPiece(p) });
   }
 
   // Glazes, underglazes, clay bodies and other supplies all use this popup
@@ -2245,7 +2259,7 @@ import {
   const showTop = () => { toTop.hidden = window.scrollY < 600; };
   window.addEventListener("scroll", showTop, { passive: true }); showTop();
   toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
-  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet()));
+  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet(null, { student: state.tab === "students" })));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
   function loadSlides(strip, i) {
