@@ -201,6 +201,7 @@ textarea { resize: vertical; min-height: 96px; }
 .gline-top { display: flex; gap: 8px; align-items: center; }
 .gline-top .pick-btn, .gline-top input { flex: 1; min-width: 0; }
 .l-remove { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); font-size: 1.2rem; line-height: 1; flex: none; }
+.l-move { width: 36px; }
 
 /* Glaze photo list (opens over everything, like a full-size dropdown) */
 .picker-ov { position: fixed; inset: 0; z-index: 25; background: rgba(24,16,10,.45); display: flex; align-items: flex-end; justify-content: center; }
@@ -1587,7 +1588,8 @@ import {
                 : `<button type="button" class="pick-btn" data-pick="${i}" aria-label="Glaze ${i + 1}: ${esc(g ? gLabel(g) : orphan ? l.name : "pick a glaze")}">
                     ${g ? glazeThumb(g) : `<span class="gdot" aria-hidden="true"></span>`}
                     <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? gLabel(g) : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span></button>`}
-              ${i > 0 ? `<button type="button" class="l-remove" data-up="${i}" aria-label="Move glaze ${i + 1} earlier" title="Move up">↑</button>` : ""}
+              ${i > 0 ? `<button type="button" class="l-remove l-move" data-up="${i}" aria-label="Move glaze ${i + 1} earlier" title="Move up">↑</button>` : ""}
+              ${i < lines.length - 1 ? `<button type="button" class="l-remove l-move" data-down="${i}" aria-label="Move glaze ${i + 1} later" title="Move down">↓</button>` : ""}
               <button type="button" class="l-remove" data-rm="${i}" aria-label="Remove glaze ${i + 1}">×</button>
             </div>
             <div class="gline-row">
@@ -1622,6 +1624,8 @@ import {
         const pk = e.target.closest("[data-pick]"); if (pk) return chooseFor(Number(pk.dataset.pick));
         const up = e.target.closest("[data-up]");
         if (up) { const i = Number(up.dataset.up); [lines[i - 1], lines[i]] = [lines[i], lines[i - 1]]; return showLines(); }
+        const dn = e.target.closest("[data-down]");
+        if (dn) { const i = Number(dn.dataset.down); [lines[i], lines[i + 1]] = [lines[i + 1], lines[i]]; return showLines(); }
         const rm = e.target.closest("[data-rm]"); if (!rm) return;
         lines.splice(Number(rm.dataset.rm), 1); showLines();
       });
