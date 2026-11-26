@@ -220,6 +220,8 @@ textarea { resize: vertical; min-height: 96px; }
 .pick-row .thumb, .pick-row .gdot { width: 52px; height: 52px; border-radius: 10px; font-size: 1.4rem; }
 .pick-row .nm { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .pick-row .meta { display: block; font-size: .84rem; font-weight: 500; color: var(--muted); }
+.pick-row .pnote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .84rem; font-weight: 400; color: var(--ink); margin-top: 2px; }
+.pick-row .chip { vertical-align: 2px; }
 .pick-none { margin: 8px; color: var(--muted); }
 
 /* Clay bodies list */
@@ -1327,7 +1329,7 @@ import {
     const list = ov.querySelector(".picker-list"), q = ov.querySelector("input");
     const used = (g) => piecesWithGlaze(g.id).length;
     const row = (g) => `<button type="button" class="pick-row" data-id="${esc(g.id)}" aria-selected="${g.id === currentId}">${glazeThumb(g)}
-      <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), g.runner ? "Runner" : "", used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span></span></button>`;
+      <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}${g.runner ? ` <span class="chip no">Runs</span>` : ""}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span>${g.description || g.notes ? `<span class="pnote">${esc([g.description, g.notes].filter(Boolean).join(" — "))}</span>` : ""}</span></button>`;
     const allRow = () => `<button type="button" class="pick-row" data-id="" aria-selected="${!currentId}"><span class="gdot" aria-hidden="true">★</span>
       <span class="nm">All glazes<span class="meta">Show every piece</span></span></button>`;
     const newRow = (name) => `<button type="button" class="pick-row" data-id="new" data-name="${esc(name)}"><span class="gdot" aria-hidden="true">+</span>
