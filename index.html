@@ -1132,27 +1132,59 @@ import {
     const tries = [parts[0], parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}` : "", parts.join(" ")].filter(Boolean);
     return tries.find((t) => !nameTaken(t, exceptId)) || parts.join(" ");
   }
-  // Ask for a display name until it's one nobody else uses (or she cancels)
-  function askShort(start, exceptId) {
-    let v = start;
-    for (;;) {
-      v = (prompt("Display name (short, shows on pieces and glazes):", v) ?? "").trim();
-      if (!v) return "";
-      if (!nameTaken(v, exceptId)) return v;
-      alert(`Someone already shows as “${v}”. Try adding a last initial, like “${v} ${"H"}”.`);
-    }
+  // Changing someone's names, in a popup like the rest of the app
+  function personNameSheet(m) {
+    const isMe = state.me && m.id === state.me.uid;
+    openSheet(`
+      <h3>${isMe ? "Your name" : "Edit name"}</h3>
+      <p class="hint" style="margin:-4px 0 12px">${esc(m.email || "")}</p>
+      <form id="pn-form" novalidate>
+        <div class="fgrid">
+          <label class="f full">Full name<input id="pn-name" value="${esc(m.name || "")}" placeholder="e.g. Jen Hannah" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f full">Display name<input id="pn-short" value="${esc(m.short || suggestShort(m.name || "", m.id))}" placeholder="e.g. Jen" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <p class="hint full" id="pn-hint">Shows as the artist on pieces and the owner on glazes. Keep it short, and different from everyone else's (add a last initial if two people share a first name).</p>
+        </div>
+        <div class="actions"><div class="right"><button class="btn ghost" type="button" id="pn-cancel">Cancel</button><button class="btn" type="submit" id="pn-save">Save</button></div></div>
+      </form>`, (el) => {
+      const nameIn = el.querySelector("#pn-name"), shortIn = el.querySelector("#pn-short"), hint = el.querySelector("#pn-hint");
+      let touched = !!m.short;
+      shortIn.addEventListener("input", () => { touched = true; check(); });
+      nameIn.addEventListener("input", () => { if (!touched) shortIn.value = suggestShort(nameIn.value, m.id); check(); });
+      const check = () => {
+        const v = shortIn.value.trim(), taken = v && nameTaken(v, m.id);
+        shortIn.setAttribute("aria-invalid", taken ? "true" : "false");
+        hint.style.color = taken ? "var(--danger)" : "";
+        hint.textContent = taken ? `Someone already shows as “${v}”. Try adding a last initial, like “${v} ${(nameIn.value.trim().split(/\s+/)[1] || "H")[0].toUpperCase()}”.`
+          : "Shows as the artist on pieces and the owner on glazes. Keep it short, and different from everyone else's (add a last initial if two people share a first name).";
+        return !taken;
+      };
+      el.querySelector("#pn-cancel").addEventListener("click", peopleSheet);
+      el.querySelector("#pn-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = nameIn.value.trim(), short = shortIn.value.trim() || suggestShort(name, m.id);
+        if (!short) { shortIn.focus(); return toast("Give them a display name.", "warn"); }
+        if (!check()) { shortIn.focus(); return; }
+        if (name === (m.name || "") && short === (m.short || "")) return peopleSheet();
+        const old = personName(m), save = el.querySelector("#pn-save");
+        save.disabled = true; save.textContent = "Saving…";
+        try {
+          const b = writeBatch(fs);
+          b.update(memberRef(m.id), { name, short });
+          // Pieces and glazes already marked with their old display name follow the new one
+          if (short !== old) {
+            state.pieces.filter((p) => p.artist === old).forEach((p) => b.update(doc(fs, "studio", "shared", "pieces", p.id), { artist: short }));
+            state.glazes.filter((g) => (g.owners || []).includes(old)).forEach((g) => b.update(doc(fs, "studio", "shared", "glazes", g.id), { owners: g.owners.map((o) => (o === old ? short : o)) }));
+          }
+          await b.commit();
+          toast("Name saved", "ok"); peopleSheet();
+        } catch (ex) {
+          console.error(ex); save.disabled = false; save.textContent = "Save";
+          toast(ex && ex.code === "permission-denied" ? "Firebase didn't allow that. The rules need updating (see the setup guide)." : "Couldn't save the name. Try again.", "err");
+        }
+      });
+      setTimeout(() => nameIn.focus(), 50);
+    });
   }
-  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
-  const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
-  // New logins are made with a second, separate sign-in so making one doesn't sign her out
-  let adderAuth = null;
-  function getAdder() {
-    if (!adderAuth) adderAuth = initializeAuth(initializeApp(firebaseConfig, "adder"), { persistence: inMemoryPersistence });
-    return adderAuth;
-  }
-  const appLink = () => location.origin + location.pathname;
-  const memberRef = (uid) => doc(fs, "studio", "shared", "members", uid);
-  const requestRef = (uid) => doc(fs, "studio", "shared", "requests", uid);
 
   function refreshPeople() {
     const el = document.querySelector(".sheet.people"); if (!el) return;
@@ -1240,25 +1272,7 @@ import {
           return;
         }
         const rn = e.target.closest("[data-rename]");
-        if (rn) {
-          const m = state.members.find((x) => x.id === rn.dataset.rename); if (!m) return;
-          const old = personName(m);
-          const promptName = prompt("Full name:", m.name || ""); if (promptName === null) return;
-          const name = promptName.trim() || m.name || "";
-          const short = askShort(m.short || suggestShort(name, m.id), m.id); if (!short) return;
-          if (name === (m.name || "") && short === (m.short || "")) return;
-          try {
-            const b = writeBatch(fs);
-            b.update(memberRef(m.id), { name, short });
-            // Pieces and glazes already marked with their old display name follow the new one
-            if (short !== old) {
-              state.pieces.filter((p) => p.artist === old).forEach((p) => b.update(doc(fs, "studio", "shared", "pieces", p.id), { artist: short }));
-              state.glazes.filter((g) => (g.owners || []).includes(old)).forEach((g) => b.update(doc(fs, "studio", "shared", "glazes", g.id), { owners: g.owners.map((o) => (o === old ? short : o)) }));
-            }
-            await b.commit(); toast("Name saved", "ok");
-          } catch (ex) { console.error(ex); toast("Couldn't change the name. Try again.", "err"); }
-          return;
-        }
+        if (rn) { const m = state.members.find((x) => x.id === rn.dataset.rename); if (m) personNameSheet(m); return; }
         const let_ = e.target.closest("[data-let]"), no = e.target.closest("[data-decline]");
         if (let_) {
           const r = state.requests.find((x) => x.id === let_.dataset.let); if (!r) return;
