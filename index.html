@@ -222,6 +222,7 @@ textarea { resize: vertical; min-height: 96px; }
 .pick-row .meta { display: block; font-size: .84rem; font-weight: 500; color: var(--muted); }
 .pick-row .pnote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: .84rem; font-weight: 400; color: var(--ink); margin-top: 2px; }
 .pick-row .chip { vertical-align: 2px; }
+.pick-btn .runs { flex: none; }
 .pick-none { margin: 8px; color: var(--muted); }
 
 /* Clay bodies list */
@@ -842,7 +843,7 @@ import {
       }, onErr));
       dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "glazes"), { includeMetadataChanges: true }, (snap) => {
         state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        state.loaded.g = true; setSync(syncLabel(snap)); render(); prefetchGlazePhotos();
+        state.loaded.g = true; setSync(syncLabel(snap)); render(); refreshPeople(); prefetchGlazePhotos();
       }, onErr));
       dataUnsubs.push(onSnapshot(doc(fs, "studio", "shared", "settings", "studio"), (snap) => {
         state.settings = snap.exists() ? snap.data() : {}; render();
@@ -921,6 +922,14 @@ import {
   const STUDIO = "Studio";
   const ownersOf = (g) => ((g.owners || []).length ? g.owners : [STUDIO]);
   const ownerSort = (a, b) => (a === STUDIO ? -1 : b === STUDIO ? 1 : a.localeCompare(b));
+  // A typed name ("Jen") matched to someone in People ("Jen Hannah"): same full name, or the only person with that first name
+  function matchPerson(name) {
+    const n = name.trim().toLowerCase(); if (!n || n === STUDIO.toLowerCase()) return null;
+    const names = state.members.map(personName);
+    const exact = names.filter((x) => x.toLowerCase() === n); if (exact.length) return exact[0];
+    const first = names.filter((x) => x.toLowerCase().split(/\s+/)[0] === n);
+    return first.length === 1 ? first[0] : null;
+  }
   const notJustStudio = (g) => { const o = ownersOf(g); return o.length > 1 || o[0] !== STUDIO; };
   const gLabel = (g) => [(g.code || "").trim(), g.name].filter(Boolean).join(" ");
   const sameCode = (a, b) => a.replace(/[\s.-]/g, "").toLowerCase() === b.replace(/[\s.-]/g, "").toLowerCase();
@@ -1142,6 +1151,14 @@ import {
       try { await deleteDoc(memberRef(b.dataset.remove)); toast("Removed. They can't see the studio anymore.", "ok"); } catch (e) { console.error(e); toast("Couldn't remove them. Try again.", "err"); }
     }));
     const reqs = state.requests.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    // Owner names on glazes that don't match anyone in People (e.g. typed "Jen" in an import): offer to point them at a person
+    const known = new Set([STUDIO, ...state.members.map(personName)]);
+    const strays = [...new Set(state.glazes.flatMap((g) => g.owners || []))].filter((o) => !known.has(o)).sort();
+    el.querySelector("#pp-fix").innerHTML = strays.length && state.members.length ? `<div class="pp-waiting"><div class="sect-label">Glaze owners not in People</div>
+      ${strays.map((o) => { const n = state.glazes.filter((g) => (g.owners || []).includes(o)).length, guess = matchPerson(o);
+        return `<div class="pp-row"><div class="pp-who"><b>“${esc(o)}”</b><small>Owner on ${plural(n, "glaze")}. Who is this?</small></div>
+          <div class="pp-acts"><select data-fix-to="${esc(o)}" aria-label="Who “${esc(o)}” is">${state.members.map((m) => personName(m)).sort().map((x) => `<option${x === guess ? " selected" : ""}>${esc(x)}</option>`).join("")}</select>
+          <button type="button" class="btn small" data-fix="${esc(o)}">Change</button></div></div>`; }).join("")}</div>` : "";
     el.querySelector("#pp-wait").innerHTML = reqs.length ? `<div class="pp-waiting"><div class="sect-label">Waiting to get in</div>
       ${reqs.map((r) => `<div class="pp-row">
         <div class="pp-who"><b>${esc(r.email || "Someone")}</b><small>Signed in ${esc(new Date(r.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }))} and asked to get in</small></div>
@@ -1158,6 +1175,7 @@ import {
     openSheet(`
       <h3>People</h3>
       <div id="pp-wait"></div>
+      <div id="pp-fix"></div>
       <div class="sect-label">Who can sign in</div>
       <div id="pp-list" class="pp-list"></div>
       <form id="pp-add" class="pp-add" novalidate>
@@ -1190,6 +1208,18 @@ import {
         catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); refreshPeople(); }
       });
       el.addEventListener("click", async (e) => {
+        const fx = e.target.closest("[data-fix]");
+        if (fx) {
+          const from = fx.dataset.fix, to = el.querySelector(`[data-fix-to="${CSS.escape(from)}"]`).value;
+          const m = state.members.find((x) => personName(x) === to); if (!to || !m) return;
+          fx.disabled = true;
+          try {
+            for (const g of state.glazes.filter((x) => (x.owners || []).includes(from))) { const { id, ...data } = g; await api.save("glazes", id, { ...data, owners: [...new Set(g.owners.map((o) => (o === from ? to : o)))] }); }
+            if (fs && !m.owner && m.id !== (state.me && state.me.uid)) await updateDoc(memberRef(m.id), { owner: true }).catch(console.error);
+            refreshPeople(); toast(`Changed “${from}” to ${to}`, "ok");
+          } catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); fx.disabled = false; }
+          return;
+        }
         const rn = e.target.closest("[data-rename]");
         if (rn) {
           const m = state.members.find((x) => x.id === rn.dataset.rename); if (!m) return;
@@ -1608,7 +1638,7 @@ import {
                 ? `<input data-f="name" value="${esc(l.name)}" placeholder="New glaze name" ${TEXT_ATTRS} autocapitalize="words" aria-label="New glaze name">`
                 : `<button type="button" class="pick-btn" data-pick="${i}" aria-label="Glaze ${i + 1}: ${esc(g ? gLabel(g) : orphan ? l.name : "pick a glaze")}">
                     ${g ? glazeThumb(g) : `<span class="gdot" aria-hidden="true"></span>`}
-                    <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? gLabel(g) : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span></button>`}
+                    <span class="nm${g || orphan ? "" : " placeholder"}">${esc(g ? gLabel(g) : orphan ? `${l.name} (deleted)` : "Pick a glaze…")}</span>${g && g.runner ? `<span class="chip no runs">Runs</span>` : ""}</button>`}
               ${i > 0 ? `<button type="button" class="l-remove l-move" data-up="${i}" aria-label="Move glaze ${i + 1} earlier" title="Move up">↑</button>` : ""}
               ${i < lines.length - 1 ? `<button type="button" class="l-remove l-move" data-down="${i}" aria-label="Move glaze ${i + 1} later" title="Move down">↓</button>` : ""}
               <button type="button" class="l-remove" data-rm="${i}" aria-label="Remove glaze ${i + 1}">×</button>
@@ -1882,7 +1912,7 @@ import {
         rating: (RATINGS.find(([k, l]) => k === ratingTxt || l.toLowerCase() === ratingTxt) || [""])[0],
         description: get("description"), recipe: get("recipe"), notes: get("notes"),
       };
-      const own = get("owners").split(/[;,]/).map((x) => x.trim()).filter(Boolean);
+      const own = [...new Set(get("owners").split(/[;,]/).map((x) => x.trim()).filter(Boolean).map((x) => (x.toLowerCase() === STUDIO.toLowerCase() ? STUDIO : matchPerson(x) || x)))];
       if (own.length) rec.owners = own;
       const nm = name.toLowerCase();
       const match = (rec.code && pool.find((g) => g.code && sameCode(g.code, rec.code)))
