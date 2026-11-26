@@ -923,7 +923,14 @@ import {
   const statusOf = (p) => { for (let i = STAGES.length - 1; i >= 0; i--) if (stageDate(p, STAGES[i][0])) return STAGES[i]; return null; };
   const pieceWhen = (p) => STAGES.map(([k]) => stageDate(p, k)).filter(Boolean).sort().pop() || "";
   const pieceSort = (a, b) => pieceWhen(b).localeCompare(pieceWhen(a)) || (b.createdAt || 0) - (a.createdAt || 0);
-  const glazeSort = (a, b) => (a.name || "").localeCompare(b.name || "");
+  // Shelf order: by the number in the code (C1, C10, PC15, C20, PC20…), then codes with no number (AB, CCCM), then anything without a code, by name
+  const codeNum = (g) => { const m = (g.code || "").match(/(\d+)\s*$/); return m ? Number(m[1]) : Infinity; };
+  const glazeSort = (a, b) => {
+    const ca = (a.code || "").trim(), cb = (b.code || "").trim();
+    if (!!ca !== !!cb) return ca ? -1 : 1;
+    if (ca) { const d = codeNum(a) - codeNum(b); if (d) return d; const c = ca.localeCompare(cb, undefined, { numeric: true, sensitivity: "base" }); if (c) return c; }
+    return (a.name || "").localeCompare(b.name || "");
+  };
   const priceRange = (p) => { const lo = p.priceLow, hi = p.priceHigh; if (!lo && !hi) return ""; return lo && hi && lo !== hi ? `$${lo}–$${hi}` : `$${lo || hi}`; };
   const piecePhotoIds = (p) => [...pieceIds(p), p.bottomPhotoId].filter(Boolean);
   const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example);
