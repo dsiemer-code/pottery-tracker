@@ -403,6 +403,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 </button>
 <div id="sheet-root"></div>
 <div class="toast" id="toast" role="status" hidden></div>
+<input class="vh" type="file" id="import-file" accept=".csv,text/csv,text/comma-separated-values,text/plain" tabindex="-1" aria-hidden="true">
 
 <script type="module">
 import { firebaseConfig } from "./firebase-config.js";
@@ -793,8 +794,8 @@ import {
       const now = Date.now();
       const pic = (...a) => storePhoto(demoPot(...a));
       local.glazes = [
-        { id: "g1", code: "PC-20", name: "Floating Blue", type: "glaze", brand: "Amaco Potter's Choice", color: "Blue", cone: "Cone 5–6", size: "1 pint", price: "18.99", where: "Local clay supply", rating: "love", photoId: pic("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), description: "Deep blue that breaks brown over edges.", notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
-        { id: "g2", code: "SW-100", name: "Celadon", type: "glaze", brand: "Mayco Stoneware", color: "Pale green", cone: "Cone 6", rating: "ok", photoId: pic("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
+        { id: "g1", name: "Floating Blue", type: "glaze", brand: "Amaco Potter's Choice", color: "Blue", cone: "Cone 5–6", size: "1 pint", price: "18.99", where: "Local clay supply", rating: "love", photoId: pic("tile", "#3E5F8A", "#C9B49A", "#8FB3C9"), description: "Deep blue that breaks brown over edges.", notes: "Breaks beautifully over texture. 3 coats brushed.", createdAt: now - 3e8, example: true },
+        { id: "g2", name: "Celadon", type: "glaze", brand: "Mayco Stoneware", color: "Pale green", cone: "Cone 6", rating: "ok", photoId: pic("tile", "#9DBFA6", "#C9B49A", "#C7DCCB"), notes: "Pretty but pools thin on vertical sides.", createdAt: now - 2e8, example: true },
         { id: "g3", name: "Iron Red", type: "glaze", color: "Red", cone: "Cone 6", runner: true, rating: "no", photoId: pic("tile", "#7A2E1C", "#C9B49A", "#3A1A12"), notes: "Ran off the pot onto the kiln shelf. Never again on a vase.", createdAt: now - 1e8, example: true },
         { id: "g4", name: "Black Velvet", type: "underglaze", brand: "Amaco Velvet", color: "Black", cone: "Cone 05–10", createdAt: now - 9e7, example: true },
         { id: "c1", name: "Speckled Buff", type: "clay", brand: "Laguna", cone: "Cone 5–6", size: "25 lb", price: "32", shrinkage: "12", createdAt: now - 5e8, example: true },
@@ -1069,7 +1070,7 @@ import {
           ${RATINGS.map(([k, label]) => `<button type="button" data-rating="${k}" aria-pressed="${fr === k}">${label}</button>`).join("")}
           <button type="button" data-rating="runner" aria-pressed="${fr === "runner"}">Runners</button>
         </div>
-        <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${state.glazes.length && canEdit() ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""}</div>
+        <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${canEdit() ? `${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""} · <button class="linkbtn" data-act="import-glazes" type="button" style="padding:0">Import</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards glz">${list.map((g) => {
         const clay = isClay(g), n = clay ? piecesWithClay(g.name).length : used.get(g.id) || 0, src = glazePhoto(g);
@@ -1796,6 +1797,72 @@ import {
     }
     downloadFile(toCSV(rows), `pottery-pieces-${todayStr()}.csv`);
   }
+  // ---------- Importing glazes from a spreadsheet (CSV) ----------
+  // Reads this app's own glaze backup, or any sheet with columns like Code / Name / Mfg.
+  // A glaze already in the app (same code, or same name when either has no code) only gets its blanks filled in.
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = "", q = false;
+    text = text.replace(/^﻿/, "");
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((x) => x.trim()));
+  }
+  const IMPORT_COLS = {
+    code: ["code"], name: ["name", "glaze"], type: ["kind", "type"],
+    brand: ["manufacturer / supplier", "manufacturer", "mfg", "brand", "supplier", "maker"],
+    color: ["color", "colour"], size: ["size"], price: ["price"], where: ["best place to buy", "where to buy", "where"],
+    cone: ["fire temp", "cone", "fire temp / cone"], bisque: ["bisque temp", "bisque"], clayType: ["clay it works on"],
+    runner: ["runner"], shrinkage: ["shrinkage (%)", "shrinkage"], rating: ["liked it?", "rating"],
+    description: ["description"], recipe: ["recipe"], notes: ["notes", "comments"],
+  };
+  async function importGlazes(file) {
+    let rows;
+    try { rows = parseCSV(await file.text()); } catch (e) { console.error(e); return toast("Couldn't read that file.", "err"); }
+    const head = (rows.shift() || []).map((h) => h.trim().toLowerCase());
+    const col = {}; for (const [k, names] of Object.entries(IMPORT_COLS)) { const i = head.findIndex((h) => names.includes(h)); if (i >= 0) col[k] = i; }
+    if (col.name == null) return toast("That file needs a column called Name. Save it from Excel as CSV, or use a Download backup file.", "warn");
+    const added = [], filled = []; let same = 0;
+    const pool = state.glazes.slice();
+    for (const r of rows) {
+      const get = (k) => (col[k] == null ? "" : (r[col[k]] || "").trim());
+      const name = get("name"); if (!name) continue;
+      const typeTxt = get("type").toLowerCase();
+      const ratingTxt = get("rating").toLowerCase();
+      const rec = {
+        code: get("code"), name, type: (SUPPLY_TYPES.find(([k, l]) => k === typeTxt || l.toLowerCase() === typeTxt) || ["glaze"])[0],
+        brand: get("brand"), color: get("color"), size: get("size"), price: get("price").replace(/^\$/, ""), where: get("where"),
+        cone: get("cone"), bisque: get("bisque"), clayType: get("clayType"), runner: /^(y|yes|true|x)$/i.test(get("runner")), shrinkage: get("shrinkage"),
+        rating: (RATINGS.find(([k, l]) => k === ratingTxt || l.toLowerCase() === ratingTxt) || [""])[0],
+        description: get("description"), recipe: get("recipe"), notes: get("notes"),
+      };
+      const nm = name.toLowerCase();
+      const match = (rec.code && pool.find((g) => g.code && sameCode(g.code, rec.code)))
+        || pool.find((g) => (g.name || "").trim().toLowerCase() === nm && (!g.code || !rec.code || sameCode(g.code, rec.code)));
+      if (match) {
+        const blanks = {};
+        for (const [k, v] of Object.entries(rec)) if (v && k !== "type" && !match[k]) blanks[k] = v;
+        if (Object.keys(blanks).length) filled.push({ g: match, blanks }); else same++;
+      } else {
+        const g = { id: uid(), ...rec, photoId: "", createdAt: Date.now() + added.length };
+        added.push(g); pool.push(g);
+      }
+    }
+    if (!added.length && !filled.length) return toast(same ? "Everything in that file is already here." : "Didn't find any glazes in that file.", "warn");
+    const msg = [added.length ? `add ${(added.length === 1 ? "1 new glaze or supply" : added.length + " new glazes and supplies")}` : "", filled.length ? `fill in missing details on ${(filled.length === 1 ? "1" : filled.length)} you already have` : ""].filter(Boolean).join(" and ");
+    if (!confirm(`This will ${msg}. Nothing already filled in gets changed. Go ahead?`)) return;
+    for (const g of added) { const { id, ...data } = g; await api.save("glazes", id, data); }
+    for (const { g, blanks } of filled) { const { id, ...data } = g; await api.save("glazes", id, { ...data, ...blanks }); }
+    toast(`Imported: ${added.length} added${filled.length ? `, ${filled.length} filled in` : ""}`, "ok");
+  }
   function downloadGlazes() {
     const rows = [["Code", "Name", "Kind", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp", "Clay it works on", "Runner", "Shrinkage (%)",
       "Liked it?", "Description", "Recipe", "Notes", "Pieces used on"]];
@@ -1812,6 +1879,7 @@ import {
     state.tab = b.dataset.tab; render(); window.scrollTo(0, 0);
   });
   document.getElementById("people").addEventListener("click", peopleSheet);
+  document.getElementById("import-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) importGlazes(f); });
   document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet()));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
@@ -1834,6 +1902,7 @@ import {
     if (t.closest("[data-act='clear-examples']")) return clearExamples();
     if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
     if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
+    if (t.closest("[data-act='import-glazes']")) { const f = document.getElementById("import-file"); f.value = ""; f.click(); return; }
     if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "" }); return render(); }
     if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
     const sa = t.closest("[data-sarr]");
