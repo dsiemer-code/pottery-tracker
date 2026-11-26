@@ -237,7 +237,9 @@ button.vline { cursor: pointer; }
 }
 .picker-head { display: flex; align-items: center; gap: 10px; padding: 18px 16px 10px; }
 .picker-head h3 { flex: 1; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; }
-.picker-search { padding: 0 16px 10px; }
+.picker-search { padding: 0 16px 10px; display: flex; gap: 8px; }
+.picker-search input { flex: 1; min-width: 0; }
+.picker-search .pick-owner { width: auto; flex: none; max-width: 45%; }
 .picker-list { flex: 1; overflow: auto; padding: 0 8px 12px; }
 .pick-row { display: flex; width: 100%; align-items: center; gap: 12px; padding: 8px; min-height: 68px; border: 0; border-radius: 12px; background: none; text-align: left; }
 .pick-row:hover, .pick-row[aria-selected="true"] { background: var(--bg); }
@@ -467,7 +469,7 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
   const local = { pieces: [], glazes: [], settings: {}, photos: {} };
@@ -1444,17 +1446,24 @@ import {
   // Searchable glaze list with photos, like a full-size dropdown. onPick(id, typedName): id is a glaze id,
   // "" for All glazes (filter mode) or "new" for a glaze that isn't in the Glazes tab yet.
   function pickGlaze(currentId, onPick, { filter = false, skip = [] } = {}) {
-    const glazes = glazeList().filter((g) => !skip.includes(g.id) || g.id === currentId).sort(glazeSort);
+    const all = glazeList().filter((g) => !skip.includes(g.id) || g.id === currentId).sort(glazeSort);
+    // Whose glazes to list: Studio's by default; the choice sticks while the app is open
+    const owners = [...new Set(all.flatMap(ownersOf))].sort(ownerSort);
+    if (state.pickOwner && !owners.includes(state.pickOwner)) state.pickOwner = "";
+    const mine = () => all.filter((g) => !state.pickOwner || ownersOf(g).includes(state.pickOwner) || g.id === currentId);
+    let glazes = mine();
     const title = filter ? "Show pieces with" : "Choose a glaze";
     const ov = document.createElement("div");
     ov.className = "picker-ov";
     ov.innerHTML = `<div class="picker" role="dialog" aria-modal="true" aria-label="${title}">
       <div class="picker-head"><h3>${title}</h3><button type="button" class="btn ghost small" data-close>Close</button></div>
-      <div class="picker-search"><input type="search" placeholder="Search ${plural(glazes.length, "glaze")}" aria-label="Search glazes" ${TEXT_ATTRS} autocapitalize="words"></div>
+      <div class="picker-search">${owners.length > 1 ? `<select class="pick-owner" aria-label="Whose glazes">${owners.map((o) => `<option value="${esc(o)}"${state.pickOwner === o ? " selected" : ""}>${o === STUDIO ? "Studio" : esc(o) + "'s"}</option>`).join("")}<option value=""${!state.pickOwner ? " selected" : ""}>Everyone's</option></select>` : ""}<input type="search" placeholder="Search ${plural(glazes.length, "glaze")}" aria-label="Search glazes" ${TEXT_ATTRS} autocapitalize="words"></div>
       <div class="picker-list"></div>
     </div>`;
     document.getElementById("sheet-root").appendChild(ov);
-    const list = ov.querySelector(".picker-list"), q = ov.querySelector("input");
+    const list = ov.querySelector(".picker-list"), q = ov.querySelector("input[type=search]");
+    const ownSel = ov.querySelector(".pick-owner");
+    if (ownSel) ownSel.addEventListener("change", () => { state.pickOwner = ownSel.value; glazes = mine(); q.placeholder = `Search ${plural(glazes.length, "glaze")}`; draw(); });
     const used = (g) => piecesWithGlaze(g.id).length;
     const row = (g) => `<button type="button" class="pick-row" data-id="${esc(g.id)}" aria-selected="${g.id === currentId}">${glazeThumb(g)}
       <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}${g.runner ? ` <span class="chip no">Runs</span>` : ""}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), notJustStudio(g) ? `owned by ${ownersOf(g).join(", ")}` : "", used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span>${g.description || g.notes ? `<span class="pnote">${esc([g.description, g.notes].filter(Boolean).join(" — "))}</span>` : ""}</span></button>`;
@@ -1468,7 +1477,7 @@ import {
       const exact = glazeList().some((g) => (g.name || "").trim().toLowerCase() === t);
       list.innerHTML = (filter ? (typed ? "" : allRow()) : exact ? "" : newRow(typed))
         + hits.map(row).join("")
-        + (hits.length ? "" : `<p class="pick-none">No glaze matches “${esc(typed)}”.</p>`);
+        + (hits.length ? "" : `<p class="pick-none">${typed ? `No glaze matches “${esc(typed)}”` : "No glazes here"}${state.pickOwner ? ` in ${state.pickOwner === STUDIO ? "Studio" : esc(state.pickOwner) + "'s"}. Try “Everyone's” above.` : "."}</p>`);
     };
     draw();
     Promise.all(glazes.filter((g) => g.photoId && !photoCache.has(g.photoId)).map((g) => loadPhoto(g.photoId))).then((got) => { if (got.length && ov.isConnected) draw(); });
