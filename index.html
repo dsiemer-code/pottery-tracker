@@ -83,6 +83,21 @@ nav.tabs button {
   font-weight: 600; font-size: 1rem; color: var(--muted);
 }
 nav.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.head-right .linkbtn { white-space: nowrap; }
+/* Phones: one-line title, a dot for "Synced", and less padding so the header takes about half the room */
+@media (max-width: 600px) {
+  .head-row { padding-block: 8px 6px; gap: 8px; }
+  h1 { font-size: 1.15rem; gap: 7px; }
+  h1 svg { width: 22px; height: 22px; }
+  h1 .title-stack { white-space: nowrap; }
+  h1 .ver { font-size: .6rem; }
+  .head-right { gap: 4px; }
+  .head-right .linkbtn { font-size: .95rem; padding: 6px; }
+  .sync { font-size: .72rem; white-space: nowrap; }
+  .sync.ok { font-size: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 4px; }
+  nav.tabs { padding-block: 0 8px; }
+  nav.tabs button { padding: 7px 10px; font-size: .95rem; }
+}
 
 main { padding-block: 18px 110px; display: grid; gap: 16px; }
 .panel { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 0; }
@@ -185,6 +200,20 @@ textarea { resize: vertical; min-height: 96px; }
 .sect-label { font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
 .pp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .pp-head h3 { margin: 0; }
+.signview { position: fixed; inset: 0; z-index: 70; background: var(--bg); display: flex; flex-direction: column; }
+.sv-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.sv-acts { display: flex; gap: 8px; }
+.sv-page { flex: 1; overflow: auto; padding: 16px; display: grid; place-items: start center; }
+.sv-page img { width: 100%; max-width: 640px; height: auto; box-shadow: 0 4px 24px rgba(0,0,0,.25); background: #fff; }
+@media print {
+  @page { size: letter; margin: 0; }
+  body.printing-sign > *:not(.signview) { display: none !important; }
+  body.printing-sign { background: #fff !important; }
+  body.printing-sign .signview { position: static; background: #fff; display: block; }
+  body.printing-sign .sv-bar { display: none !important; }
+  body.printing-sign .sv-page { padding: 0; display: block; overflow: visible; }
+  body.printing-sign .sv-page img { max-width: none; width: 100%; box-shadow: none; }
+}
 .share-qr { display: grid; place-items: center; background: #fff; border-radius: 16px; padding: 16px; width: min(280px, 100%); margin: 0 auto; }
 .share-qr img { width: 100%; height: auto; display: block; image-rendering: pixelated; }
 .share-link { text-align: center; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; margin: 10px 0 0; }
@@ -801,7 +830,7 @@ import {
     render();
   }
 
-  function setSync(text) { document.getElementById("sync").textContent = text; }
+  function setSync(text) { const el = document.getElementById("sync"); el.textContent = text; el.classList.toggle("ok", text === "Synced"); el.title = text; }
   function syncLabel(snap) {
     if (snap.metadata.hasPendingWrites) return navigator.onLine ? "Saving…" : "Saved on this device";
     return snap.metadata.fromCache ? "Offline" : "Synced";
@@ -1267,6 +1296,31 @@ import {
   }
 
   // The QR code and printable sign for the studio wall (share/qr.png and share/sign.pdf sit next to the app)
+  // The printable sign, shown inside the app (a PDF opened from the home-screen app on an iPhone has no way back).
+  // Print uses the phone's print screen; Share or save hands the PDF to the share sheet (Print, Save to Files, AirDrop, Messages…).
+  function signView() {
+    const v = document.createElement("div");
+    v.className = "signview";
+    v.innerHTML = `<div class="sv-bar"><button class="btn ghost small" type="button" data-sv="back">‹ Back</button>
+        <div class="sv-acts"><button class="btn ghost small" type="button" data-sv="share">Share or save</button><button class="btn small" type="button" data-sv="print">Print</button></div></div>
+      <div class="sv-page"><img src="share/sign.png" alt="Sign: Pottery Tracker, scan with your phone's camera"></div>`;
+    document.body.appendChild(v);
+    const shareBtn = v.querySelector('[data-sv="share"]');
+    if (!navigator.share) shareBtn.hidden = true;
+    v.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-sv]"); if (!b) return;
+      if (b.dataset.sv === "back") return v.remove();
+      if (b.dataset.sv === "print") { document.body.classList.add("printing-sign"); window.print(); setTimeout(() => document.body.classList.remove("printing-sign"), 500); return; }
+      if (b.dataset.sv === "share") {
+        try {
+          const blob = await (await fetch("share/sign.pdf")).blob();
+          const file = new File([blob], "Pottery Tracker sign.pdf", { type: "application/pdf" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Pottery Tracker sign" });
+          else await navigator.share({ title: "Pottery Tracker sign", url: new URL("share/sign.pdf", location.href).href });
+        } catch (ex) { if (ex && ex.name !== "AbortError") { console.error(ex); toast("Couldn't open sharing. Try Print instead.", "warn"); } }
+      }
+    });
+  }
   function shareSheet() {
     openSheet(`
       <h3>Share the app</h3>
@@ -1275,9 +1329,10 @@ import {
       <p class="share-link">${esc(appLink())}</p>
       <div class="actions" style="flex-wrap:wrap">
         <button class="btn ghost" type="button" id="sh-back">Back</button>
-        <div class="right"><button class="btn ghost" type="button" id="sh-copy">Copy link</button><a class="btn" id="sh-sign" href="share/sign.pdf" target="_blank" rel="noopener">Print the sign</a></div>
+        <div class="right"><button class="btn ghost" type="button" id="sh-copy">Copy link</button><button class="btn" type="button" id="sh-sign">Print the sign</button></div>
       </div>`, (el) => {
       el.querySelector("#sh-back").addEventListener("click", peopleSheet);
+      el.querySelector("#sh-sign").addEventListener("click", signView);
       el.querySelector("#sh-copy").addEventListener("click", async () => {
         try { await navigator.clipboard.writeText(appLink()); toast("Link copied", "ok"); } catch (e) { toast("Couldn't copy. Press and hold the link to copy it instead.", "warn"); }
       });
@@ -1434,6 +1489,7 @@ import {
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     const crop = document.querySelector(".cropper"); if (crop) { crop.querySelector("[data-c=cancel]").click(); return; }
+    const sv = document.querySelector(".signview"); if (sv) { sv.remove(); return; }
     const v = document.querySelector(".viewer"); if (v) { v.remove(); return; }
     const picker = document.querySelector(".picker-ov");
     if (picker) picker.remove(); else closeSheet();
