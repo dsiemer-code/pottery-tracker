@@ -57,6 +57,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .signin { max-width: 400px; margin: 8vh auto 0; display: grid; gap: 14px; }
 .signin p { margin: 0; color: var(--muted); }
 .signin .err { color: var(--danger); font-size: .9rem; min-height: 1.2em; }
+.signin .err.ok { color: var(--good); }
+.si-links { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.si-links .linkbtn { padding: 6px 0; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
 .num { font-variant-numeric: tabular-nums; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -463,12 +466,18 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 
 <div class="wrap">
   <form class="signin panel" id="signin" hidden novalidate>
-    <h2 style="margin:0">Sign in</h2>
-    <p>Use the email and password set up for this app.</p>
+    <h2 style="margin:0" id="si-title">Sign in</h2>
+    <p id="si-intro">Use your email and password for this app.</p>
+    <label class="f" id="si-name-wrap" hidden>Your name<input id="si-name" autocomplete="name" autocapitalize="words" placeholder="First and last name"></label>
     <label class="f">Email<input id="si-email" type="email" autocomplete="username" required></label>
-    <label class="f">Password<input id="si-pass" type="password" autocomplete="current-password" required></label>
-    <div class="err" id="si-err"></div>
+    <label class="f" id="si-pass-wrap">Password<input id="si-pass" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="si-err" role="status"></div>
     <button class="btn" type="submit" id="si-go">Sign in</button>
+    <div class="si-links">
+      <button class="linkbtn" type="button" data-si="up" id="si-to-up">New here? Create an account</button>
+      <button class="linkbtn" type="button" data-si="reset" id="si-to-reset">Forgot password?</button>
+      <button class="linkbtn" type="button" data-si="in" id="si-to-in" hidden>‹ Back to sign in</button>
+    </div>
   </form>
   <main id="view"></main>
 </div>
@@ -485,7 +494,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
 <script type="module">
 import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, initializeAuth, inMemoryPersistence, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, initializeAuth, inMemoryPersistence, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocFromCache, writeBatch, updateDoc,
@@ -864,6 +873,22 @@ import {
     return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
   }
 
+  // The sign-in screen does three jobs: sign in, create an account (then wait to be let in), or email a new-password link
+  let siMode = "in", signupName = "";
+  function setSiMode(m) {
+    siMode = m;
+    const $ = (id) => document.getElementById(id);
+    $("si-title").textContent = m === "up" ? "Create an account" : m === "reset" ? "Forgot your password?" : "Sign in";
+    $("si-intro").textContent = m === "up" ? "Pick your own password. Someone at the studio lets you in, then you can see the app." : m === "reset" ? "Type your email and we'll send you a link to pick a new password." : "Use your email and password for this app.";
+    $("si-name-wrap").hidden = m !== "up";
+    $("si-pass-wrap").hidden = m === "reset";
+    $("si-pass").setAttribute("autocomplete", m === "up" ? "new-password" : "current-password");
+    $("si-go").textContent = m === "up" ? "Create account" : m === "reset" ? "Send the link" : "Sign in";
+    $("si-to-up").hidden = m !== "in"; $("si-to-reset").hidden = m !== "in"; $("si-to-in").hidden = m === "in";
+    $("si-err").textContent = ""; $("si-err").classList.remove("ok");
+    (m === "up" ? $("si-name") : $("si-email")).focus();
+  }
+
   function connect() {
     if (!configured) {
       // Demo mode: nothing is saved until firebase-config.js is filled in.
@@ -941,14 +966,14 @@ import {
         return;
       }
       const reqRef = doc(fs, "studio", "shared", "requests", user.uid);
-      if (!(await getDoc(reqRef)).exists()) await setDoc(reqRef, { email: user.email || "", createdAt: Date.now() });
+      if (!(await getDoc(reqRef)).exists()) await setDoc(reqRef, { email: user.email || "", name: signupName || user.displayName || "", createdAt: Date.now() });
     }
 
     onAuthStateChanged(auth, (user) => {
       unsubs.forEach((u) => u()); unsubs = []; stopData();
       state.role = null; state.me = null; state.myDoc = null;
-      if (!user) { uidPath = null; setSync(""); showApp(false); render(); return; }
-      uidPath = user.uid; state.me = { uid: user.uid, email: user.email || "" };
+      if (!user) { uidPath = null; signupName = ""; setSync(""); showApp(false); render(); return; }
+      uidPath = user.uid; state.me = { uid: user.uid, email: user.email || "", name: signupName || user.displayName || "" };
       showApp(true); render();
       unsubs.push(onSnapshot(doc(fs, "studio", "shared", "members", user.uid), async (snap) => {
         if (snap.exists()) {
@@ -967,14 +992,34 @@ import {
     document.getElementById("signin").addEventListener("submit", async (e) => {
       e.preventDefault();
       const err = document.getElementById("si-err"), go = document.getElementById("si-go");
-      err.textContent = ""; go.disabled = true;
+      const email = document.getElementById("si-email").value.trim(), pass = document.getElementById("si-pass").value, name = document.getElementById("si-name").value.trim().replace(/\s+/g, " ");
+      const say = (t, ok) => { err.textContent = t; err.classList.toggle("ok", !!ok); };
+      say("");
+      if (siMode === "up" && !name) { document.getElementById("si-name").focus(); return say("Type your name so the studio knows who you are."); }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { document.getElementById("si-email").focus(); return say("Type your email address."); }
+      if (siMode === "up" && pass.length < 6) { document.getElementById("si-pass").focus(); return say("Pick a password with at least 6 characters."); }
+      go.disabled = true;
       try {
-        await signInWithEmailAndPassword(auth, document.getElementById("si-email").value.trim(), document.getElementById("si-pass").value);
+        if (siMode === "reset") {
+          await sendPasswordResetEmail(auth, email);
+          say("If that email has a login, a link to pick a new password is on its way. Check your junk or spam folder too.", true);
+        } else if (siMode === "up") {
+          signupName = name;
+          const cred = await createUserWithEmailAndPassword(auth, email, pass);
+          updateProfile(cred.user, { displayName: name }).catch(console.error);
+        } else await signInWithEmailAndPassword(auth, email, pass);
       } catch (ex) {
         const c = ex && ex.code || "";
-        err.textContent = c.includes("network") ? "No connection. Sign in once you're online." :
+        signupName = "";
+        say(c.includes("network") ? "No connection. Try again once you're online." :
           c.includes("too-many") ? "Too many tries. Wait a few minutes and try again." :
-          "That email and password don't match. Check them and try again.";
+          c.includes("email-already-in-use") ? "That email already has a login. Sign in instead, or use “Forgot password?”." :
+          c.includes("weak-password") ? "Pick a longer password." :
+          c.includes("invalid-email") ? "That email doesn't look right." :
+          c.includes("operation-not-allowed") || c.includes("admin-restricted") ? "New accounts are turned off right now. Ask at the studio for a login." :
+          siMode === "reset" ? "Couldn't send the email. Try again." :
+          siMode === "up" ? "Couldn't create the account. Try again." :
+          "That email and password don't match. Check them and try again.");
       } finally { go.disabled = false; }
     });
     document.getElementById("signout").addEventListener("click", () => signOut(auth));
@@ -1316,8 +1361,8 @@ import {
           <button type="button" class="btn small" data-fix="${esc(o)}">Change</button></div></div>`; }).join("")}</div>` : "";
     el.querySelector("#pp-wait").innerHTML = reqs.length ? `<div class="pp-waiting"><div class="sect-label">Waiting to get in</div>
       ${reqs.map((r) => `<div class="pp-row">
-        <div class="pp-who"><b>${esc(r.email || "Someone")}</b><small>Signed in ${esc(new Date(r.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }))} and asked to get in</small></div>
-        <div class="pp-acts"><button type="button" class="btn small" data-let="${esc(r.id)}" data-as="full">Full access</button><button type="button" class="btn small ghost" data-let="${esc(r.id)}" data-as="student">Student</button><button type="button" class="btn small danger" data-decline="${esc(r.id)}">No</button></div>
+        <div class="pp-who"><b>${esc(r.name || r.email || "Someone")}</b><small>${r.name && r.email ? `${esc(r.email)} · ` : ""}Asked to get in ${esc(new Date(r.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }))}</small></div>
+        <div class="pp-acts"><button type="button" class="btn small" data-let="${esc(r.id)}" data-as="student">Student</button><button type="button" class="btn small ghost" data-let="${esc(r.id)}" data-as="full">Full access</button><button type="button" class="btn small danger" data-decline="${esc(r.id)}">No</button></div>
       </div>`).join("")}</div>` : "";
   }
 
@@ -1352,7 +1397,7 @@ import {
   function shareSheet() {
     openSheet(`
       <h3>Share the app</h3>
-      <p style="margin:0 0 12px">Students scan this with their phone's camera to open the app. They still need a login from People.</p>
+      <p style="margin:0 0 12px">Students scan this with their phone's camera to open the app. They can create their own account there; you let them in from People.</p>
       <div class="share-qr"><img src="share/qr.png" alt="QR code that opens Pottery Tracker"></div>
       <p class="share-link">${esc(appLink())}</p>
       <div class="actions" style="flex-wrap:wrap">
@@ -1430,10 +1475,11 @@ import {
           let_.disabled = true;
           try {
             const b = writeBatch(fs);
-            b.set(memberRef(r.id), { email: r.email || "", name: "", role: let_.dataset.as, createdAt: Date.now() });
+            const name = (r.name || "").trim(), short = name ? suggestShort(name, r.id) : "";
+            b.set(memberRef(r.id), { email: r.email || "", name, ...(short ? { short } : {}), role: let_.dataset.as, createdAt: Date.now() });
             b.delete(requestRef(r.id));
             await b.commit();
-            toast(`${r.email || "They"} can get in now`, "ok");
+            toast(`${short || r.email || "They"} can get in now${let_.dataset.as === "student" ? " as a student" : ""}`, "ok");
           } catch (ex) { console.error(ex); toast("Couldn't let them in. Try again.", "err"); let_.disabled = false; }
         }
         if (no) { try { await deleteDoc(requestRef(no.dataset.decline)); toast("Request removed", "ok"); } catch (ex) { console.error(ex); toast("Couldn't remove that. Try again.", "err"); } }
@@ -1495,9 +1541,9 @@ import {
   function waitingHTML() {
     if (state.role === null) return `<section class="panel"><div class="empty">Checking your access…</div></section>`;
     return `<section class="panel">
-      <h2>Almost there</h2>
-      <p style="margin:0 0 10px">You're signed in as <b>${esc(state.me ? state.me.email : "")}</b>, but you haven't been let in yet.</p>
-      <p style="margin:0;color:var(--muted)">Ask the person who runs this app to open <b>People</b> and let you in. This page updates by itself once they do.</p>
+      <h2>${state.me && state.me.name ? `Thanks, ${esc(state.me.name.split(" ")[0])}!` : "Almost there"}</h2>
+      <p style="margin:0 0 10px">You're signed in as <b>${esc(state.me ? state.me.email : "")}</b>. Someone at the studio needs to let you in before you can see the app.</p>
+      <p style="margin:0;color:var(--muted)">Ask at the studio. Once they let you in, this page opens the app by itself.</p>
       ${state.accessError ? `<p style="margin:10px 0 0;color:var(--danger)">Couldn't check your access. Make sure you're online, then close and reopen the app.</p>` : ""}
     </section>`;
   }
@@ -2259,6 +2305,9 @@ import {
   const showTop = () => { toTop.hidden = window.scrollY < 600; };
   window.addEventListener("scroll", showTop, { passive: true }); showTop();
   toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+  document.getElementById("signin").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-si]"); if (b) setSiMode(b.dataset.si);
+  });
   document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet(null, { student: state.tab === "students" })));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
