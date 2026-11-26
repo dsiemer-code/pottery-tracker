@@ -1044,6 +1044,15 @@ import {
     if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
     else if (state.tab === "glazes") html += glazesHTML();
     else html += piecesHTML();
+    // Remember which card is at the top of the screen, so when the list changes (someone else adds or removes a piece)
+    // that card stays exactly where it was instead of everything shifting under her
+    let anchor = null;
+    if (window.scrollY > 0 && v.dataset.tab === state.tab) {
+      const headBottom = document.querySelector("header").getBoundingClientRect().bottom;
+      const card = [...v.querySelectorAll(".card")].find((c) => c.getBoundingClientRect().bottom > headBottom + 8);
+      const key = card && card.querySelector("[data-piece], [data-glaze]");
+      if (key) anchor = { sel: key.dataset.piece ? `[data-piece="${CSS.escape(key.dataset.piece)}"]` : `[data-glaze="${CSS.escape(key.dataset.glaze)}"]`, top: card.getBoundingClientRect().top };
+    }
     // While she's typing or dictating into a search box, swap everything around it but leave the box itself alone.
     // Replacing it would end iPhone dictation after the first word.
     const keep = (active === "q" || active === "gq") && document.getElementById(active);
@@ -1063,6 +1072,8 @@ import {
     // Put swiped photo strips back where they were
     v.querySelectorAll(".strip").forEach((s) => { const i = state.strip[s.dataset.strip] || 0; if (i) { s.scrollLeft = i * s.clientWidth; loadSlides(s, i); } });
     if (caret !== null) { const q = document.getElementById(active); if (q) { q.focus(); try { q.setSelectionRange(caret, caret); } catch (e) {} } }
+    v.dataset.tab = state.tab;
+    if (anchor) { const k = v.querySelector(anchor.sel), c = k && k.closest(".card"); if (c) { const d = c.getBoundingClientRect().top - anchor.top; if (Math.abs(d) > 1) window.scrollBy(0, d); } }
   }
 
   function banners() {
