@@ -127,6 +127,7 @@ button.body:hover .name { color: var(--accent); }
 .cards.glz { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
 .cards.glz .pic { aspect-ratio: 1; }
 .cards.glz .body { padding: 10px 12px 8px; }
+.cards.glz .notes { -webkit-line-clamp: 5; }
 .cards.glz .foot { padding: 0 12px 10px; }
 .gchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .gchip { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); max-width: 100%; }
@@ -1110,7 +1111,7 @@ import {
           <button type="button" class="body" data-glaze="${esc(g.id)}" aria-label="Open ${esc(g.name)}">
             <span class="name">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}</span>
             ${meta.length ? `<span class="meta">${meta.map(esc).join(" · ")}</span>` : ""}
-            ${g.description || g.notes ? `<span class="notes">${esc(g.description || g.notes)}</span>` : ""}
+            ${g.description || g.notes ? `<span class="notes">${esc([g.description, g.notes].filter(Boolean).join(" — "))}</span>` : ""}
             ${g.rating || g.runner || g.example ? `<span class="chips">${g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span>` : ""}${g.runner ? `<span class="chip no">Runner</span>` : ""}${g.example ? `<span class="chip ex">Example</span>` : ""}</span>` : ""}
           </button>
           <div class="foot">${n ? `<button class="linkbtn" type="button" ${clay ? `data-clay-pieces="${esc(g.name)}"` : `data-glaze-pieces="${esc(g.id)}"`}>Used on ${plural(n, "piece")}</button>` : `<span class="meta">Not used yet</span>`}</div>
