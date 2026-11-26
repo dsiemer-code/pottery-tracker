@@ -1091,7 +1091,6 @@ import {
     const sel = (key, all, opts) => `<select data-filter="${key}" aria-label="${esc(all)}"><option value="">${esc(all)}</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${state[key] === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     return `
       <section class="panel">
-        <div class="total"><b class="num">${state.pieces.length}</b>${state.pieces.length === 1 ? "piece" : "pieces"} in all</div>
         <div class="toolbar">
           <input class="search" id="q" type="search" placeholder="Search: mug, blue, frozen pond…" value="${esc(state.search)}" aria-label="Search pieces" autocomplete="off">
         </div>
@@ -1305,8 +1304,10 @@ import {
         <div class="sv-acts"><button class="btn ghost small" type="button" data-sv="share">Share or save</button><button class="btn small" type="button" data-sv="print">Print</button></div></div>
       <div class="sv-page"><img src="share/sign.png" alt="Sign: Pottery Tracker, scan with your phone's camera"></div>`;
     document.body.appendChild(v);
-    const shareBtn = v.querySelector('[data-sv="share"]');
+    const shareBtn = v.querySelector('[data-sv="share"]'), printBtn = v.querySelector('[data-sv="print"]');
     if (!navigator.share) shareBtn.hidden = true;
+    // In the iPhone/iPad home-screen app, window.print() does nothing; the share sheet has Print, so use that instead
+    if (navigator.standalone && navigator.share) { printBtn.hidden = true; shareBtn.textContent = "Print or share"; shareBtn.classList.remove("ghost"); }
     v.addEventListener("click", async (e) => {
       const b = e.target.closest("[data-sv]"); if (!b) return;
       if (b.dataset.sv === "back") return v.remove();
