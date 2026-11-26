@@ -183,6 +183,8 @@ textarea { resize: vertical; min-height: 96px; }
 .sheet .actions .right { display: flex; gap: 10px; margin-left: auto; }
 .sheet .hint { margin: 0; color: var(--muted); font-size: .85rem; }
 .sect-label { font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.pp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.pp-head h3 { margin: 0; }
 .share-qr { display: grid; place-items: center; background: #fff; border-radius: 16px; padding: 16px; width: min(280px, 100%); margin: 0 auto; }
 .share-qr img { width: 100%; height: auto; display: block; image-rendering: pixelated; }
 .share-link { text-align: center; color: var(--muted); font-size: .88rem; overflow-wrap: anywhere; margin: 10px 0 0; }
@@ -958,8 +960,8 @@ import {
   // A typed name ("Jen") matched to someone in People ("Jen Hannah"): same full name, or the only person with that first name
   function matchPerson(name) {
     const n = name.trim().toLowerCase(); if (!n || n === STUDIO.toLowerCase()) return null;
-    const exact = state.members.filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase() === n)); if (exact.length) return personName(exact[0]);
-    const first = state.members.filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase().split(/\s+/)[0] === n));
+    const exact = shown().filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase() === n)); if (exact.length) return personName(exact[0]);
+    const first = shown().filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase().split(/\s+/)[0] === n));
     return first.length === 1 ? personName(first[0]) : null;
   }
   const notJustStudio = (g) => { const o = ownersOf(g); return o.length > 1 || o[0] !== STUDIO; };
@@ -1152,7 +1154,11 @@ import {
   }
 
   // ---------- People ----------
-  const ROLES = [["full", "Full access"], ["student", "Student (view only)"]];
+  const ROLES = [["full", "Full access"], ["admin", "Admin (hidden)"], ["student", "Student (view only)"]];
+  // An admin has full access but is kept out of sight: not listed in People (except to other admins), and not offered as an artist or glaze owner
+  const roleOf = (m) => (m.hidden ? "admin" : m.role === "student" ? "student" : "full");
+  const shown = () => state.members.filter((m) => !m.hidden);
+  const iAmAdmin = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return !!(m && m.hidden); };
   const canEdit = () => !fs || state.role === "full";
   // Who made a piece: anyone on the People list, plus any name already typed on a piece (people who don't use the app)
   // Each person has a full name and a short display name (e.g. "Jen", or "Jen H" when two people are called Jen).
@@ -1164,7 +1170,7 @@ import {
     const tries = [parts[0], parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}` : "", parts.join(" ")].filter(Boolean);
     return tries.find((t) => !nameTaken(t, exceptId)) || parts.join(" ");
   }
-  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
+  const artistNames = () => [...new Set([...shown().map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
   const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
   // New logins are made with a second, separate sign-in so making one doesn't sign her out
   let adderAuth = null;
@@ -1233,11 +1239,11 @@ import {
   function refreshPeople() {
     const el = document.querySelector(".sheet.people"); if (!el) return;
     const me = state.me && state.me.uid;
-    const members = state.members.slice().sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : (a.name || a.email || "").localeCompare(b.name || b.email || "")));
+    const members = (iAmAdmin() ? state.members : shown()).slice().sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : (a.name || a.email || "").localeCompare(b.name || b.email || "")));
     el.querySelector("#pp-list").innerHTML = members.map((m) => `<div class="pp-row">
         <button type="button" class="pp-who linkish" data-rename="${esc(m.id)}" aria-label="Change the names for ${esc(m.name || m.email)}"><b>${esc(m.name || m.email)}</b><small>${m.short ? `Shows as <b>${esc(m.short)}</b> · ` : ""}${esc(m.email)} · Tap to ${m.name ? "change" : "add"} name</small></button>
-        ${m.id === me ? `<span class="chip">You · Full access</span>`
-          : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${ROLES.map(([k, l]) => `<option value="${k}"${(m.role || "full") === k ? " selected" : ""}>${l}</option>`).join("")}</select>
+        ${m.id === me ? `<span class="chip">You · ${roleOf(m) === "admin" ? "Admin (hidden)" : "Full access"}</span>`
+          : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${ROLES.map(([k, l]) => `<option value="${k}"${roleOf(m) === k ? " selected" : ""}>${l}</option>`).join("")}</select>
              <label class="pp-own"><input type="checkbox" data-owner="${esc(m.id)}"${m.owner ? " checked" : ""}> Glaze owner</label>
              <button type="button" class="btn small danger" data-remove="${esc(m.id)}">Remove</button></div>`}
       </div>`).join("") || `<p class="hint">Loading…</p>`;
@@ -1251,7 +1257,7 @@ import {
     el.querySelector("#pp-fix").innerHTML = strays.length && state.members.length ? `<div class="pp-waiting"><div class="sect-label">Glaze owners not in People</div>
       ${strays.map((o) => { const n = state.glazes.filter((g) => (g.owners || []).includes(o)).length, guess = matchPerson(o);
         return `<div class="pp-row"><div class="pp-who"><b>“${esc(o)}”</b><small>Owner on ${plural(n, "glaze")}. Who is this?</small></div>
-          <div class="pp-acts"><select data-fix-to="${esc(o)}" aria-label="Who “${esc(o)}” is">${state.members.map((m) => personName(m)).sort().map((x) => `<option${x === guess ? " selected" : ""}>${esc(x)}</option>`).join("")}</select>
+          <div class="pp-acts"><select data-fix-to="${esc(o)}" aria-label="Who “${esc(o)}” is">${shown().map((m) => personName(m)).sort().map((x) => `<option${x === guess ? " selected" : ""}>${esc(x)}</option>`).join("")}</select>
           <button type="button" class="btn small" data-fix="${esc(o)}">Change</button></div></div>`; }).join("")}</div>` : "";
     el.querySelector("#pp-wait").innerHTML = reqs.length ? `<div class="pp-waiting"><div class="sect-label">Waiting to get in</div>
       ${reqs.map((r) => `<div class="pp-row">
@@ -1279,12 +1285,12 @@ import {
   }
   function peopleSheet() {
     if (!fs) {
-      openSheet(`<h3>People</h3><p class="hint">In demo mode there's nobody to add. Once Firebase is connected, this is where people get logins: full access, or students who can look but not change anything.</p>
-        <div class="actions"><button class="btn ghost" type="button" id="pp-share">Share the app</button><div class="right"><button class="btn" type="button" id="pp-close">Close</button></div></div>`, (el) => { el.querySelector("#pp-close").addEventListener("click", closeSheet); el.querySelector("#pp-share").addEventListener("click", shareSheet); });
+      openSheet(`<div class="pp-head"><h3>People</h3><button class="btn ghost small" type="button" id="pp-share">Share the app</button></div><p class="hint">In demo mode there's nobody to add. Once Firebase is connected, this is where people get logins: full access, or students who can look but not change anything.</p>
+        <div class="actions"><div class="right"><button class="btn" type="button" id="pp-close">Close</button></div></div>`, (el) => { el.querySelector("#pp-close").addEventListener("click", closeSheet); el.querySelector("#pp-share").addEventListener("click", shareSheet); });
       return;
     }
     openSheet(`
-      <h3>People</h3>
+      <div class="pp-head"><h3>People</h3><button class="btn ghost small" type="button" id="pp-share">Share the app</button></div>
       <div id="pp-wait"></div>
       <div id="pp-fix"></div>
       <div class="sect-label">Who can sign in</div>
@@ -1297,13 +1303,13 @@ import {
           <label class="f">Email<input id="pp-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sarah@example.com"></label>
           <label class="f">Starting password<input id="pp-pass" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="At least 6 characters"></label>
           <div class="f"><span>Access</span>${pillSet("pp-role", ROLES, ["full"], { single: true, label: "Access" })}</div>
-          <p class="hint full">Full access can add and change everything, including people. Students can look at everything but can't change anything.</p>
+          <p class="hint full">Full access can add and change everything, including people. Admin is the same, but hidden from People and from the artist and owner lists. Students can look at everything but can't change anything.</p>
           <label class="pp-own full"><input type="checkbox" id="pp-owner"> Glaze owner: they have glazes of their own to list</label>
           <div class="full"><button class="btn" type="submit" id="pp-go">Add person</button></div>
           <div class="full" id="pp-done"></div>
         </div>
       </form>
-      <div class="actions"><button class="btn ghost" type="button" id="pp-share">Share the app</button><div class="right"><button class="btn ghost" type="button" id="pp-close">Close</button></div></div>`, (el) => {
+      <div class="actions"><div class="right"><button class="btn ghost" type="button" id="pp-close">Close</button></div></div>`, (el) => {
       el.classList.add("people");
       refreshPeople();
       wireForm(el);
@@ -1317,7 +1323,7 @@ import {
           return;
         }
         const s = e.target.closest("[data-role]"); if (!s) return;
-        try { await updateDoc(memberRef(s.dataset.role), { role: s.value }); toast(s.value === "student" ? "Changed to student (view only)" : "Changed to full access", "ok"); }
+        try { await updateDoc(memberRef(s.dataset.role), { role: s.value === "student" ? "student" : "full", hidden: s.value === "admin" }); toast(s.value === "student" ? "Changed to student (view only)" : s.value === "admin" ? "Changed to admin (hidden from lists)" : "Changed to full access", "ok"); }
         catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); refreshPeople(); }
       });
       el.addEventListener("click", async (e) => {
@@ -1372,7 +1378,7 @@ import {
           const cred = await createUserWithEmailAndPassword(adder, email, pass);
           const uid = cred.user.uid;
           await signOut(adder);
-          await setDoc(memberRef(uid), { email, name, short, role, owner: el.querySelector("#pp-owner").checked, createdAt: Date.now() });
+          await setDoc(memberRef(uid), { email, name, short, role: role === "student" ? "student" : "full", hidden: role === "admin", owner: el.querySelector("#pp-owner").checked, createdAt: Date.now() });
           const details = `Pottery Tracker\n${appLink()}\nEmail: ${email}\nPassword: ${pass}`;
           el.querySelector("#pp-done").innerHTML = `<div class="pp-card"><b>${esc(name || email)} can sign in now${role === "student" ? " (view only)" : ""}.</b>
             <span>Send them the link, their email and this password: <b>${esc(pass)}</b></span>
@@ -1938,7 +1944,7 @@ import {
     const clay = isClay(g);
     // Who has this glaze: anyone in People, anyone already named on a piece or glaze, plus whoever's typed in. A new one starts as hers.
     const ownersNow = ownersOf(g);
-    const ownerList = [...new Set([STUDIO, ...state.members.filter((m) => m.owner).map(personName), ...ownersNow])].sort(ownerSort);
+    const ownerList = [...new Set([STUDIO, ...shown().filter((m) => m.owner).map(personName), ...ownersNow])].sort(ownerSort);
     const usedOn = isNew ? [] : (clay ? piecesWithClay(g.name) : piecesWithGlaze(g.id)).sort(pieceSort);
     openSheet(`
       <h3>${isNew ? "Add a glaze or supply" : `Edit ${esc(typeLabel(g.type).toLowerCase())}`}</h3>
