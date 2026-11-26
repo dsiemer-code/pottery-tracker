@@ -440,7 +440,7 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
   const local = { pieces: [], glazes: [], settings: {}, photos: {} };
@@ -915,6 +915,11 @@ import {
   };
   // A piece keeps each glaze's name too, so it still reads right if the glaze is later deleted
   // A glaze's code (e.g. PC-46) goes in front of its name wherever it's shown, since that's how she talks about them
+  // Whose glaze it is. "Studio" (her studio) is the default: a glaze with no owners set counts as the studio's
+  const STUDIO = "Studio";
+  const ownersOf = (g) => ((g.owners || []).length ? g.owners : [STUDIO]);
+  const ownerSort = (a, b) => (a === STUDIO ? -1 : b === STUDIO ? 1 : a.localeCompare(b));
+  const notJustStudio = (g) => { const o = ownersOf(g); return o.length > 1 || o[0] !== STUDIO; };
   const gLabel = (g) => [(g.code || "").trim(), g.name].filter(Boolean).join(" ");
   const sameCode = (a, b) => a.replace(/[\s.-]/g, "").toLowerCase() === b.replace(/[\s.-]/g, "").toLowerCase();
   const lineName = (l) => { const g = glazeById(l.glazeId); return g ? g.name : l.name || "Glaze"; };
@@ -1056,11 +1061,13 @@ import {
   }
 
   function glazesHTML() {
-    const q = state.gsearch.trim().toLowerCase(), fr = state.filterRating, ft = state.filterType;
+    const q = state.gsearch.trim().toLowerCase(), fr = state.filterRating, ft = state.filterType, fo = state.filterOwner;
+    const owners = [...new Set(state.glazes.flatMap(ownersOf))].sort(ownerSort);
     const list = state.glazes
       .filter((g) => !ft || typeOf(g) === ft)
+      .filter((g) => !fo || ownersOf(g).includes(fo))
       .filter((g) => !fr || (fr === "runner" ? g.runner : g.rating === fr))
-      .filter((g) => { if (!q) return true; const t = [g.code, g.code && g.code.replace(/[\s.-]/g, ""), g.name, g.brand, g.color, g.notes, g.description, g.where, g.recipe, typeLabel(g.type)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); })
+      .filter((g) => { if (!q) return true; const t = [g.code, g.code && g.code.replace(/[\s.-]/g, ""), g.name, g.brand, g.color, g.notes, g.description, g.where, g.recipe, typeLabel(g.type), ...ownersOf(g)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); })
       .sort(glazeSort);
     const TYPE_PLURAL = { glaze: "Glazes", underglaze: "Underglazes", stain: "Stains", lowfire: "Low-fire glazes", slip: "Slips", clay: "Clay bodies" };
     const types = SUPPLY_TYPES.filter(([k]) => state.glazes.some((g) => typeOf(g) === k));
@@ -1080,11 +1087,12 @@ import {
           ${RATINGS.map(([k, label]) => `<button type="button" data-rating="${k}" aria-pressed="${fr === k}">${label}</button>`).join("")}
           <button type="button" data-rating="runner" aria-pressed="${fr === "runner"}">Runners</button>
         </div>
+        ${owners.length > 1 ? `<div class="filters"><select data-filter="filterOwner" aria-label="Whose glazes"><option value="">Everyone's</option>${owners.map((o) => `<option value="${esc(o)}"${fo === o ? " selected" : ""}>${o === STUDIO ? "Studio" : esc(o) + "'s"}</option>`).join("")}</select></div>` : ""}
         <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${canEdit() ? `${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""} · <button class="linkbtn" data-act="import-glazes" type="button" style="padding:0">Import</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards glz">${list.map((g) => {
         const clay = isClay(g), n = clay ? piecesWithClay(g.name).length : used.get(g.id) || 0, src = glazePhoto(g);
-        const meta = [typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, g.color].filter(Boolean);
+        const meta = [typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, g.color, notJustStudio(g) ? `Owned by ${ownersOf(g).join(", ")}` : ""].filter(Boolean);
         return `<article class="card">
           ${src ? `<button type="button" class="pic" data-zoom-glaze="${esc(g.id)}" aria-label="See ${esc(g.name)} bigger"><img src="${esc(src)}" alt="" loading="lazy"></button>`
             : `<div class="pic"><div class="nopic">${POT_ICON}</div></div>`}
@@ -1105,7 +1113,7 @@ import {
   const canEdit = () => !fs || state.role === "full";
   // Who made a piece: anyone on the People list, plus any name already typed on a piece (people who don't use the app)
   const personName = (m) => (m.name || "").trim() || (m.email || "").split("@")[0];
-  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
   const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
   // New logins are made with a second, separate sign-in so making one doesn't sign her out
   let adderAuth = null;
@@ -1329,14 +1337,14 @@ import {
     const list = ov.querySelector(".picker-list"), q = ov.querySelector("input");
     const used = (g) => piecesWithGlaze(g.id).length;
     const row = (g) => `<button type="button" class="pick-row" data-id="${esc(g.id)}" aria-selected="${g.id === currentId}">${glazeThumb(g)}
-      <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}${g.runner ? ` <span class="chip no">Runs</span>` : ""}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span>${g.description || g.notes ? `<span class="pnote">${esc([g.description, g.notes].filter(Boolean).join(" — "))}</span>` : ""}</span></button>`;
+      <span class="nm">${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}${g.runner ? ` <span class="chip no">Runs</span>` : ""}<span class="meta">${[typeOf(g) === "glaze" ? "" : typeLabel(g.type), g.brand, ratingLabel(g.rating), notJustStudio(g) ? `owned by ${ownersOf(g).join(", ")}` : "", used(g) ? `on ${plural(used(g), "piece")}` : ""].filter(Boolean).map(esc).join(" · ")}</span>${g.description || g.notes ? `<span class="pnote">${esc([g.description, g.notes].filter(Boolean).join(" — "))}</span>` : ""}</span></button>`;
     const allRow = () => `<button type="button" class="pick-row" data-id="" aria-selected="${!currentId}"><span class="gdot" aria-hidden="true">★</span>
       <span class="nm">All glazes<span class="meta">Show every piece</span></span></button>`;
     const newRow = (name) => `<button type="button" class="pick-row" data-id="new" data-name="${esc(name)}"><span class="gdot" aria-hidden="true">+</span>
       <span class="nm">${name ? `Add “${esc(name)}” as a new glaze` : "New glaze (not in Glazes yet)"}<span class="meta">It's added to the Glazes tab when you save the piece</span></span></button>`;
     const draw = () => {
       const typed = q.value.trim(), t = typed.toLowerCase();
-      const hits = t ? glazes.filter((g) => [g.name, g.brand, g.color, g.code].some((s) => (s || "").toLowerCase().includes(t)) || (g.code && sameCode(g.code, t))) : glazes;
+      const hits = t ? glazes.filter((g) => [g.name, g.brand, g.color, g.code, ...ownersOf(g)].some((s) => (s || "").toLowerCase().includes(t)) || (g.code && sameCode(g.code, t))) : glazes;
       const exact = glazeList().some((g) => (g.name || "").trim().toLowerCase() === t);
       list.innerHTML = (filter ? (typed ? "" : allRow()) : exact ? "" : newRow(typed))
         + hits.map(row).join("")
@@ -1696,6 +1704,9 @@ import {
     g = g || { name: "", brand: "", rating: "", notes: "", type };
     let photo = g.photoId ? { id: g.photoId, src: photoCache.get(g.photoId) || "" } : null;
     const clay = isClay(g);
+    // Who has this glaze: anyone in People, anyone already named on a piece or glaze, plus whoever's typed in. A new one starts as hers.
+    const ownersNow = ownersOf(g);
+    const ownerList = [...new Set([STUDIO, ...artistNames(), ...ownersNow])].sort(ownerSort);
     const usedOn = isNew ? [] : (clay ? piecesWithClay(g.name) : piecesWithGlaze(g.id)).sort(pieceSort);
     openSheet(`
       <h3>${isNew ? "Add a glaze or supply" : `Edit ${esc(typeLabel(g.type).toLowerCase())}`}</h3>
@@ -1708,6 +1719,9 @@ import {
           </div>
           <label class="f">Name<input id="g-title" required value="${esc(g.name)}" placeholder="e.g. Floating Blue" ${TEXT_ATTRS} autocapitalize="words"></label>
           <label class="f">Code<input id="g-code" value="${esc(g.code || "")}" placeholder="e.g. PC-46" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters"></label>
+          <div class="f full"><span>Who has it</span>${pillSet("g-owners", ownerList, ownersNow, { label: "Who has it" })}
+            <input id="g-owners-new" placeholder="Someone else? Type their name" ${TEXT_ATTRS} autocapitalize="words" aria-label="Add another owner" style="margin-top:6px">
+            <span class="hint" style="font-weight:400">Studio is the main studio. Tap everyone else who has it too.</span></div>
           <label class="f">Kind<select id="g-type">${SUPPLY_TYPES.map(([k, l]) => `<option value="${k}"${k === typeOf(g) ? " selected" : ""}>${l}</option>`).join("")}</select></label>
           <div class="f full"><span>Did you like it?</span>${pillSet("g-rating", RATINGS, [g.rating || ""], { single: true, label: "Did you like it?" })}</div>
         </div>
@@ -1767,6 +1781,7 @@ import {
           code,           name, type, brand: v("g-brand"), size: v("g-size"), price: v("g-price").replace(/^\$/, ""), where: v("g-where"),
           color: v("g-color"), cone: v("g-cone"), bisque: v("g-bisque"),
           clayType: type === "clay" ? "" : v("g-clay"), runner: type !== "clay" && readPills(el, "g-runner").includes("yes"), shrinkage: type === "clay" ? v("g-shrink") : "",
+          owners: [...new Set([...readPills(el, "g-owners"), ...v("g-owners-new").split(/[,;]/).map((x) => x.trim()).filter(Boolean)])],
           rating: readPills(el, "g-rating")[0] || "", description: v("g-desc"), recipe: v("g-recipe"), notes: v("g-notes"),
           createdAt: g.createdAt || Date.now(),
         };
@@ -1835,7 +1850,7 @@ import {
     color: ["color", "colour"], size: ["size"], price: ["price"], where: ["best place to buy", "where to buy", "where"],
     cone: ["fire temp", "cone", "fire temp / cone"], bisque: ["bisque temp", "bisque"], clayType: ["clay it works on"],
     runner: ["runner"], shrinkage: ["shrinkage (%)", "shrinkage"], rating: ["liked it?", "rating"],
-    description: ["description"], recipe: ["recipe"], notes: ["notes", "comments"],
+    description: ["description"], recipe: ["recipe"], notes: ["notes", "comments"], owners: ["owners", "owner", "who has it"],
   };
   async function importGlazes(file) {
     let rows;
@@ -1857,12 +1872,16 @@ import {
         rating: (RATINGS.find(([k, l]) => k === ratingTxt || l.toLowerCase() === ratingTxt) || [""])[0],
         description: get("description"), recipe: get("recipe"), notes: get("notes"),
       };
+      const own = get("owners").split(/[;,]/).map((x) => x.trim()).filter(Boolean);
+      if (own.length) rec.owners = own;
       const nm = name.toLowerCase();
       const match = (rec.code && pool.find((g) => g.code && sameCode(g.code, rec.code)))
         || pool.find((g) => (g.name || "").trim().toLowerCase() === nm && (!g.code || !rec.code || sameCode(g.code, rec.code)));
       if (match) {
         const blanks = {};
-        for (const [k, v] of Object.entries(rec)) if (v && k !== "type" && !match[k]) blanks[k] = v;
+        for (const [k, v] of Object.entries(rec)) if (v && k !== "type" && k !== "owners" && !match[k]) blanks[k] = v;
+        // Owners are added to, never replaced
+        if (rec.owners && rec.owners.some((o) => !ownersOf(match).includes(o))) blanks.owners = [...new Set([...ownersOf(match), ...rec.owners])];
         if (Object.keys(blanks).length) filled.push({ g: match, blanks }); else same++;
       } else {
         const g = { id: uid(), ...rec, photoId: "", createdAt: Date.now() + added.length };
@@ -1876,11 +1895,31 @@ import {
     for (const { g, blanks } of filled) { const { id, ...data } = g; await api.save("glazes", id, { ...data, ...blanks }); }
     toast(`Imported: ${added.length} added${filled.length ? `, ${filled.length} filled in` : ""}`, "ok");
   }
+  // Columns for a sheet to fill in and import (same as the backup, minus the counts)
+  const IMPORT_HEADERS = ["Code", "Name", "Kind", "Owners", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp",
+    "Clay it works on", "Runner", "Shrinkage (%)", "Liked it?", "Description", "Recipe", "Notes"];
+  function importSheet() {
+    openSheet(`<h3>Import glazes and supplies</h3>
+      <p style="margin:0 0 10px">Fill in a spreadsheet, one glaze per row, save it as <b>CSV</b>, then choose it here.</p>
+      <ul class="hint" style="margin:0 0 14px;padding-left:18px;display:grid;gap:4px">
+        <li>Only <b>Name</b> is needed. Leave anything else blank.</li>
+        <li><b>Owners</b>: who has it, separated by commas. Blank means Studio.</li>
+        <li><b>Kind</b>: Glaze, Underglaze, Clay body… Blank means Glaze.</li>
+        <li><b>Runner</b>: Yes if it runs.</li>
+        <li>Glazes already here (same code or name) only get their blanks filled in. Nothing gets erased.</li>
+      </ul>
+      <div class="actions" style="flex-wrap:wrap"><button class="btn ghost" type="button" id="im-blank">Download blank sheet</button>
+        <div class="right"><button class="btn ghost" type="button" id="im-close">Cancel</button><button class="btn" type="button" id="im-go">Choose file</button></div></div>`, (el) => {
+      el.querySelector("#im-close").addEventListener("click", closeSheet);
+      el.querySelector("#im-blank").addEventListener("click", () => downloadFile(toCSV([IMPORT_HEADERS]), "glaze-import-sheet.csv"));
+      el.querySelector("#im-go").addEventListener("click", () => { const f = document.getElementById("import-file"); f.value = ""; f.click(); });
+    });
+  }
   function downloadGlazes() {
-    const rows = [["Code", "Name", "Kind", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp", "Clay it works on", "Runner", "Shrinkage (%)",
+    const rows = [["Code", "Name", "Kind", "Owners", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp", "Clay it works on", "Runner", "Shrinkage (%)",
       "Liked it?", "Description", "Recipe", "Notes", "Pieces used on"]];
     for (const g of state.glazes.slice().sort(glazeSort)) {
-      rows.push([g.code, g.name, typeLabel(g.type), g.brand, g.color, g.size, g.price, g.where, g.cone, g.bisque, g.clayType, g.runner ? "Yes" : "", g.shrinkage,
+      rows.push([g.code, g.name, typeLabel(g.type), ownersOf(g).join("; "), g.brand, g.color, g.size, g.price, g.where, g.cone, g.bisque, g.clayType, g.runner ? "Yes" : "", g.shrinkage,
         ratingLabel(g.rating), g.description, g.recipe, g.notes, (isClay(g) ? piecesWithClay(g.name) : piecesWithGlaze(g.id)).length]);
     }
     downloadFile(toCSV(rows), `pottery-supplies-${todayStr()}.csv`);
@@ -1892,7 +1931,7 @@ import {
     state.tab = b.dataset.tab; render(); window.scrollTo(0, 0);
   });
   document.getElementById("people").addEventListener("click", peopleSheet);
-  document.getElementById("import-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) importGlazes(f); });
+  document.getElementById("import-file").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) { closeSheet(); importGlazes(f); } });
   document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet()));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
@@ -1915,7 +1954,7 @@ import {
     if (t.closest("[data-act='clear-examples']")) return clearExamples();
     if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
     if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
-    if (t.closest("[data-act='import-glazes']")) { const f = document.getElementById("import-file"); f.value = ""; f.click(); return; }
+    if (t.closest("[data-act='import-glazes']")) return importSheet();
     if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "" }); return render(); }
     if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
     const sa = t.closest("[data-sarr]");
