@@ -926,10 +926,9 @@ import {
   // A typed name ("Jen") matched to someone in People ("Jen Hannah"): same full name, or the only person with that first name
   function matchPerson(name) {
     const n = name.trim().toLowerCase(); if (!n || n === STUDIO.toLowerCase()) return null;
-    const names = state.members.map(personName);
-    const exact = names.filter((x) => x.toLowerCase() === n); if (exact.length) return exact[0];
-    const first = names.filter((x) => x.toLowerCase().split(/\s+/)[0] === n);
-    return first.length === 1 ? first[0] : null;
+    const exact = state.members.filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase() === n)); if (exact.length) return personName(exact[0]);
+    const first = state.members.filter((m) => [personName(m), m.name || ""].some((x) => x.trim().toLowerCase().split(/\s+/)[0] === n));
+    return first.length === 1 ? personName(first[0]) : null;
   }
   const notJustStudio = (g) => { const o = ownersOf(g); return o.length > 1 || o[0] !== STUDIO; };
   const gLabel = (g) => [(g.code || "").trim(), g.name].filter(Boolean).join(" ");
@@ -1124,7 +1123,25 @@ import {
   const ROLES = [["full", "Full access"], ["student", "Student (view only)"]];
   const canEdit = () => !fs || state.role === "full";
   // Who made a piece: anyone on the People list, plus any name already typed on a piece (people who don't use the app)
-  const personName = (m) => (m.name || "").trim() || (m.email || "").split("@")[0];
+  // Each person has a full name and a short display name (e.g. "Jen", or "Jen H" when two people are called Jen).
+  // The display name is what shows as artist and glaze owner, so it has to be unique.
+  const personName = (m) => (m.short || "").trim() || (m.name || "").trim() || (m.email || "").split("@")[0];
+  const nameTaken = (short, exceptId) => short.toLowerCase() === STUDIO.toLowerCase() || state.members.some((x) => x.id !== exceptId && personName(x).toLowerCase() === short.toLowerCase());
+  function suggestShort(full, exceptId) {
+    const parts = full.trim().split(/\s+/).filter(Boolean); if (!parts.length) return "";
+    const tries = [parts[0], parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}` : "", parts.join(" ")].filter(Boolean);
+    return tries.find((t) => !nameTaken(t, exceptId)) || parts.join(" ");
+  }
+  // Ask for a display name until it's one nobody else uses (or she cancels)
+  function askShort(start, exceptId) {
+    let v = start;
+    for (;;) {
+      v = (prompt("Display name (short, shows on pieces and glazes):", v) ?? "").trim();
+      if (!v) return "";
+      if (!nameTaken(v, exceptId)) return v;
+      alert(`Someone already shows as “${v}”. Try adding a last initial, like “${v} ${"H"}”.`);
+    }
+  }
   const artistNames = () => [...new Set([...state.members.map(personName), ...state.pieces.map((p) => (p.artist || "").trim()), ...state.glazes.flatMap((g) => g.owners || [])].filter((n) => n && n !== STUDIO))].sort((a, b) => a.localeCompare(b));
   const myName = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return m ? personName(m) : ""; };
   // New logins are made with a second, separate sign-in so making one doesn't sign her out
@@ -1142,7 +1159,7 @@ import {
     const me = state.me && state.me.uid;
     const members = state.members.slice().sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : (a.name || a.email || "").localeCompare(b.name || b.email || "")));
     el.querySelector("#pp-list").innerHTML = members.map((m) => `<div class="pp-row">
-        <button type="button" class="pp-who linkish" data-rename="${esc(m.id)}" aria-label="Change the name for ${esc(m.name || m.email)}"><b>${esc(m.name || m.email)}</b><small>${m.name ? esc(m.email) + " · " : ""}Tap to ${m.name ? "change" : "add"} name</small></button>
+        <button type="button" class="pp-who linkish" data-rename="${esc(m.id)}" aria-label="Change the names for ${esc(m.name || m.email)}"><b>${esc(m.name || m.email)}</b><small>${m.short ? `Shows as <b>${esc(m.short)}</b> · ` : ""}${esc(m.email)} · Tap to ${m.name ? "change" : "add"} name</small></button>
         ${m.id === me ? `<span class="chip">You · Full access</span>`
           : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${ROLES.map(([k, l]) => `<option value="${k}"${(m.role || "full") === k ? " selected" : ""}>${l}</option>`).join("")}</select>
              <label class="pp-own"><input type="checkbox" data-owner="${esc(m.id)}"${m.owner ? " checked" : ""}> Glaze owner</label>
@@ -1182,7 +1199,8 @@ import {
       <form id="pp-add" class="pp-add" novalidate>
         <div class="sect-label">Add someone</div>
         <div class="fgrid">
-          <label class="f">Name<input id="pp-name" placeholder="e.g. Sarah" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f">Full name<input id="pp-name" placeholder="e.g. Sarah Jones" ${TEXT_ATTRS} autocapitalize="words"></label>
+          <label class="f">Display name<input id="pp-short" placeholder="e.g. Sarah" ${TEXT_ATTRS} autocapitalize="words"></label>
           <label class="f">Email<input id="pp-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sarah@example.com"></label>
           <label class="f">Starting password<input id="pp-pass" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="At least 6 characters"></label>
           <div class="f"><span>Access</span>${pillSet("pp-role", ROLES, ["full"], { single: true, label: "Access" })}</div>
@@ -1224,14 +1242,19 @@ import {
         const rn = e.target.closest("[data-rename]");
         if (rn) {
           const m = state.members.find((x) => x.id === rn.dataset.rename); if (!m) return;
-          const old = personName(m), name = (prompt("Name (it shows up as an artist on pieces):", m.name || "") ?? "").trim();
-          if (!name || name === m.name) return;
+          const old = personName(m);
+          const promptName = prompt("Full name:", m.name || ""); if (promptName === null) return;
+          const name = promptName.trim() || m.name || "";
+          const short = askShort(m.short || suggestShort(name, m.id), m.id); if (!short) return;
+          if (name === (m.name || "") && short === (m.short || "")) return;
           try {
             const b = writeBatch(fs);
-            b.update(memberRef(m.id), { name });
-            // Pieces already marked with their old name follow the new one
-            state.pieces.filter((p) => p.artist === old).forEach((p) => b.update(doc(fs, "studio", "shared", "pieces", p.id), { artist: name }));
-            state.glazes.filter((g) => (g.owners || []).includes(old)).forEach((g) => b.update(doc(fs, "studio", "shared", "glazes", g.id), { owners: g.owners.map((o) => (o === old ? name : o)) }));
+            b.update(memberRef(m.id), { name, short });
+            // Pieces and glazes already marked with their old display name follow the new one
+            if (short !== old) {
+              state.pieces.filter((p) => p.artist === old).forEach((p) => b.update(doc(fs, "studio", "shared", "pieces", p.id), { artist: short }));
+              state.glazes.filter((g) => (g.owners || []).includes(old)).forEach((g) => b.update(doc(fs, "studio", "shared", "glazes", g.id), { owners: g.owners.map((o) => (o === old ? short : o)) }));
+            }
             await b.commit(); toast("Name saved", "ok");
           } catch (ex) { console.error(ex); toast("Couldn't change the name. Try again.", "err"); }
           return;
@@ -1255,9 +1278,15 @@ import {
           catch (ex) { toast("Couldn't copy. Write the email and password down instead.", "warn"); }
         }
       });
+      // The display name fills itself in from the full name (first name, or first name + last initial if taken) until she types her own
+      const shortIn = el.querySelector("#pp-short");
+      shortIn.addEventListener("input", () => (shortIn.dataset.touched = "1"));
+      el.querySelector("#pp-name").addEventListener("input", (e) => { if (!shortIn.dataset.touched) shortIn.value = suggestShort(e.target.value); });
       el.querySelector("#pp-add").addEventListener("submit", async (e) => {
         e.preventDefault();
         const name = el.querySelector("#pp-name").value.trim(), email = el.querySelector("#pp-email").value.trim().toLowerCase(), pass = el.querySelector("#pp-pass").value;
+        const short = el.querySelector("#pp-short").value.trim() || suggestShort(name) || email.split("@")[0];
+        if (nameTaken(short)) { el.querySelector("#pp-short").focus(); return toast(`Someone already shows as “${short}”. Add a last initial, like “${short} H”.`, "warn"); }
         const role = readPills(el, "pp-role")[0] || "full";
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { el.querySelector("#pp-email").focus(); return toast("Type their email address.", "warn"); }
         if (pass.length < 6) { el.querySelector("#pp-pass").focus(); return toast("The password needs at least 6 characters.", "warn"); }
@@ -1267,12 +1296,12 @@ import {
           const cred = await createUserWithEmailAndPassword(adder, email, pass);
           const uid = cred.user.uid;
           await signOut(adder);
-          await setDoc(memberRef(uid), { email, name, role, owner: el.querySelector("#pp-owner").checked, createdAt: Date.now() });
+          await setDoc(memberRef(uid), { email, name, short, role, owner: el.querySelector("#pp-owner").checked, createdAt: Date.now() });
           const details = `Pottery Tracker\n${appLink()}\nEmail: ${email}\nPassword: ${pass}`;
           el.querySelector("#pp-done").innerHTML = `<div class="pp-card"><b>${esc(name || email)} can sign in now${role === "student" ? " (view only)" : ""}.</b>
             <span>Send them the link, their email and this password: <b>${esc(pass)}</b></span>
             <button type="button" class="btn small" data-copy="${esc(details)}">Copy sign-in details</button></div>`;
-          ["#pp-name", "#pp-email", "#pp-pass"].forEach((s) => (el.querySelector(s).value = "")); el.querySelector("#pp-owner").checked = false;
+          ["#pp-name", "#pp-short", "#pp-email", "#pp-pass"].forEach((s) => (el.querySelector(s).value = "")); delete el.querySelector("#pp-short").dataset.touched; el.querySelector("#pp-owner").checked = false;
           toast(`${name || email} added`, "ok");
         } catch (ex) {
           console.error(ex);

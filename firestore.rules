@@ -33,7 +33,7 @@ service cloud.firestore {
       allow read: if member() || (signedIn() && request.auth.uid == uid);
       allow create: if full()
         || (signedIn() && request.auth.uid == uid && !exists(setupPath()) && existsAfter(setupPath()) && request.resource.data.role == "full");
-      allow update: if full() && (request.auth.uid != uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name"]));
+      allow update: if full() && (request.auth.uid != uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "short"]));
       allow delete: if full() && request.auth.uid != uid;
     }
 
