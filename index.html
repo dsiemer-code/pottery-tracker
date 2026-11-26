@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-26T20:01:28Z">
+<meta name="app-build" content="2026-11-26T20:03:05Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -1441,7 +1441,7 @@ import {
           <label class="f">Display name<input id="pp-short" placeholder="e.g. Sarah" ${TEXT_ATTRS} autocapitalize="words"></label>
           <label class="f">Email<input id="pp-email" type="email" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sarah@example.com"></label>
           <label class="f">Starting password<input id="pp-pass" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="At least 6 characters"></label>
-          <div class="f"><span>Access</span>${pillSet("pp-role", roleChoices(), ["full"], { single: true, label: "Access" })}</div>
+          <div class="f"><span>Access</span>${pillSet("pp-role", roleChoices(), ["student"], { single: true, label: "Access" })}</div>
           <p class="hint full">Full access can add and change everything, including people. Students can look at everything and add their own pieces under Student pieces, but can't change anything else.</p>
           <label class="pp-own full"><input type="checkbox" id="pp-owner"> Glaze owner: they have glazes of their own to list</label>
           <div class="full" style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" type="button" id="pp-add-close">Close</button><button class="btn" type="submit" id="pp-go">Add person</button></div>
@@ -1522,7 +1522,7 @@ import {
         const name = el.querySelector("#pp-name").value.trim(), email = el.querySelector("#pp-email").value.trim().toLowerCase(), pass = el.querySelector("#pp-pass").value;
         const short = el.querySelector("#pp-short").value.trim() || suggestShort(name) || email.split("@")[0];
         if (nameTaken(short)) { el.querySelector("#pp-short").focus(); return toast(`Someone already shows as “${short}”. Add a last initial, like “${short} H”.`, "warn"); }
-        const role = readPills(el, "pp-role")[0] || "full";
+        const role = readPills(el, "pp-role")[0] || "student";
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { el.querySelector("#pp-email").focus(); return toast("Type their email address.", "warn"); }
         if (pass.length < 6) { el.querySelector("#pp-pass").focus(); return toast("The password needs at least 6 characters.", "warn"); }
         const go = el.querySelector("#pp-go"); go.disabled = true; go.textContent = "Adding…";
