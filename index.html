@@ -181,6 +181,29 @@ textarea { resize: vertical; min-height: 96px; }
 .sheet .actions .right { display: flex; gap: 10px; margin-left: auto; }
 .sheet .hint { margin: 0; color: var(--muted); font-size: .85rem; }
 .sect-label { font-size: .88rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.view .vhead h3 { margin-bottom: 4px; }
+.view .vhead h3 .code { font-size: .7em; vertical-align: 3px; }
+.view .vsub { color: var(--muted); font-weight: 600; }
+.view .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.vphotos { display: flex; gap: 8px; overflow-x: auto; margin-top: 14px; scrollbar-width: none; }
+.vphotos button { position: relative; flex: 0 0 150px; aspect-ratio: 1; border: 0; padding: 0; border-radius: 12px; overflow: hidden; background: var(--accent-soft); cursor: zoom-in; }
+.vphotos.one button { flex-basis: 220px; }
+.vphotos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vphotos .tagb { position: absolute; left: 6px; bottom: 6px; background: rgba(20,14,10,.6); color: #fff; font-size: .72rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.vsect { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.vsect h4 { margin: 0 0 8px; font-size: .74rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.vlist { margin: 0; display: grid; grid-template-columns: minmax(90px, max-content) 1fr; gap: 6px 16px; }
+.vlist dt { color: var(--muted); font-size: .92rem; }
+.vlist dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.vlabel { color: var(--muted); font-size: .92rem; margin-top: 10px; }
+.vtext { margin: 2px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.vlines { display: grid; gap: 6px; margin-bottom: 10px; }
+.vline { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--bg); color: inherit; font: inherit; }
+button.vline { cursor: pointer; }
+.vline .thumb, .vline .gdot { width: 40px; height: 40px; border-radius: 8px; flex: none; object-fit: cover; }
+.vnum { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: .78rem; font-weight: 700; }
+.vgl { min-width: 0; flex: 1; }
+.vgl small { display: block; color: var(--muted); font-size: .85rem; }
 
 /* Photos in the edit sheet */
 .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
@@ -1555,6 +1578,84 @@ import {
     return show;
   }
 
+  // ---------- Looking at a piece or glaze (everyone) ----------
+  // Shows only what's filled in, laid out to read, not as a form. Full access gets an Edit button that opens the form.
+  const vRow = (label, val) => (val ? `<dt>${label}</dt><dd>${esc(val)}</dd>` : "");
+  const vSect = (title, inner) => (inner.trim() ? `<section class="vsect"><h4>${title}</h4>${inner}</section>` : "");
+  const vList = (rows) => (rows.trim() ? `<dl class="vlist">${rows}</dl>` : "");
+  const vText = (label, val) => (val ? `${label ? `<div class="vlabel">${label}</div>` : ""}<p class="vtext">${esc(val)}</p>` : "");
+  const viewActions = (editId) => `<div class="actions"><div class="right"><button class="btn ghost" type="button" data-v-close>Close</button>${canEdit() ? `<button class="btn" type="button" data-v-edit="${esc(editId)}">Edit</button>` : ""}</div></div>`;
+  function wireView(el, onEdit) {
+    el.querySelector("[data-v-close]").addEventListener("click", closeSheet);
+    const ed = el.querySelector("[data-v-edit]"); if (ed) ed.addEventListener("click", onEdit);
+    el.addEventListener("click", (e) => {
+      const vg = e.target.closest("[data-view-glaze]"); if (vg) { const g = glazeById(vg.dataset.viewGlaze); if (g) glazeView(g); return; }
+      const vp = e.target.closest("[data-view-piece]"); if (vp) { const p = pieceById(vp.dataset.viewPiece); if (p) pieceView(p); }
+    });
+  }
+
+  function pieceView(p) {
+    if (!p) return;
+    const ids = piecePhotoIds(p), st = statusOf(p);
+    const chips = [st ? `<span class="chip">${esc(st[1])}</span>` : "", ...(p.tags || []).map((t) => `<span class="chip ${t === "favorite" ? "love" : "no"}">${esc(tagLabel(t))}</span>`)].join("");
+    const lines = (p.glazes || []).map((l, i) => {
+      const g = glazeById(l.glazeId);
+      const detail = [l.coats ? `${l.coats} coat${l.coats === "1" ? "" : "s"}` : "", l.method, l.where, l.how].filter(Boolean).join(" · ");
+      const inner = `<span class="vnum">${i + 1}</span>${glazeThumb(g)}<span class="vgl"><b>${esc(g ? gLabel(g) : l.name || "Glaze")}</b>${g && g.runner ? ` <span class="chip no">Runs</span>` : ""}${detail ? `<small>${esc(detail)}</small>` : ""}</span>`;
+      return g ? `<button type="button" class="vline" data-view-glaze="${esc(g.id)}">${inner}</button>` : `<div class="vline">${inner}</div>`;
+    }).join("");
+    const clayLine = p.clay ? p.clay + (p.clayKind ? ` (${p.clayKind})` : "") : "";
+    openSheet(`
+      <div class="vhead"><h3>${esc(p.name)}</h3>
+        ${p.artist ? `<div class="vsub">By ${esc(p.artist)}</div>` : ""}
+        ${chips ? `<div class="chips">${chips}</div>` : ""}</div>
+      ${ids.length ? `<div class="vphotos">${ids.map((id, i) => `<button type="button" data-vph="${i}" aria-label="See photo ${i + 1} bigger"><img data-pid="${esc(id)}" alt="">${id === p.bottomPhotoId ? `<span class="tagb">Bottom</span>` : ""}</button>`).join("")}</div>` : ""}
+      ${vSect("About the piece", vList(vRow("Form", p.form) + vRow("Size", p.size) + vRow("Technique", (p.techniques || []).join(", ")) + vRow("Slab", p.slab)))}
+      ${vSect("Dates", vList(STAGES.map(([k, label]) => vRow(label, stageDate(p, k) ? dateLabel(stageDate(p, k)) : "")).join("")))}
+      ${vSect("Clay", vList(vRow("Clay body", clayLine) + vRow("Clay used", p.clayGrams ? `${p.clayGrams} g` : "") + vRow("Finished weight", p.weight)
+        + vRow("Before firing", p.dimBefore) + vRow("After firing", p.dimAfter) + vRow("Holds", p.volumeOz ? `${p.volumeOz} oz` : "")))}
+      ${vSect("Glazes and decoration", (lines ? `<div class="vlines">${lines}</div>` : "")
+        + vList(vRow("Layering", p.layering) + vRow("Decorations", (p.decor || []).join(", ")) + vRow("Decorative techniques", p.decorTech) + vRow("Tools", p.tools))
+        + vText("Description of the glazes", p.glazeNotes))}
+      ${vSect("Firing", vList(vRow("Firing type", p.firing) + vRow("Bisque", p.bisqueTemp) + vRow("Glaze firing", p.fireTemp)))}
+      ${canEdit() ? vSect("Price range", vList(vRow("Price", priceRange(p)))) : ""}
+      ${vSect("Comments", vText("", p.notes))}
+      ${viewActions(p.id)}`, (el) => {
+      el.classList.add("view");
+      wireView(el, () => pieceSheet(p));
+      el.querySelectorAll("img[data-pid]").forEach(async (img) => { const src = await loadPhoto(img.dataset.pid); if (src) img.src = src; });
+      el.querySelectorAll("[data-vph]").forEach((b) => b.addEventListener("click", async () => {
+        viewPhotos(await Promise.all(ids.map(loadPhoto)), Number(b.dataset.vph), p.name);
+      }));
+    }, { big: true });
+  }
+
+  function glazeView(g) {
+    if (!g) return;
+    const clay = isClay(g), usedOn = (clay ? piecesWithClay(g.name) : piecesWithGlaze(g.id)).sort(pieceSort);
+    const chips = [typeOf(g) === "glaze" ? "" : `<span class="chip">${esc(typeLabel(g.type))}</span>`, g.rating ? `<span class="chip ${g.rating}">${esc(ratingLabel(g.rating))}</span>` : "",
+      g.runner ? `<span class="chip no">Runs</span>` : ""].join("");
+    openSheet(`
+      <div class="vhead"><h3>${g.code ? `<span class="code">${esc(g.code)}</span> ` : ""}${esc(g.name)}</h3>
+        ${chips.trim() ? `<div class="chips">${chips}</div>` : ""}</div>
+      ${g.photoId ? `<div class="vphotos one"><button type="button" data-vph="0" aria-label="See the photo bigger"><img data-pid="${esc(g.photoId)}" alt=""></button></div>` : ""}
+      ${vSect("Who has it", `<p class="vtext">${esc(ownersOf(g).join(", "))}</p>`)}
+      ${vSect("Buying", vList(vRow("Made by", g.brand) + vRow("Size", g.size) + (canEdit() ? vRow("Price", g.price ? `$${g.price}` : "") : "") + vRow("Where to buy", g.where)))}
+      ${vSect(clay ? "Firing" : "Color and firing", vList(vRow("Color", g.color) + vRow("Fire temp", g.cone) + vRow("Bisque", g.bisque) + vRow("Clay it works on", g.clayType)
+        + vRow("Shrinkage", g.shrinkage ? `${g.shrinkage}%` : "")))}
+      ${vSect("Notes", vText("Description", g.description) + vText("Recipe", g.recipe) + vText(g.description || g.recipe ? "Notes" : "", g.notes))}
+      ${usedOn.length ? vSect(`Used on ${plural(usedOn.length, "piece")}`, `<div class="gchips">${usedOn.map((p) => {
+        const src = photoSrc(pieceIds(p)[0]);
+        return `<button type="button" class="gchip" data-view-piece="${esc(p.id)}">${src ? `<img src="${esc(src)}" alt="">` : `<span class="dot"></span>`}<span>${esc(p.name)}</span></button>`;
+      }).join("")}</div>`) : ""}
+      ${viewActions(g.id)}`, (el) => {
+      el.classList.add("view");
+      wireView(el, () => glazeSheet(g));
+      el.querySelectorAll("img[data-pid]").forEach(async (img) => { const src = await loadPhoto(img.dataset.pid); if (src) img.src = src; });
+      const ph = el.querySelector("[data-vph]"); if (ph) ph.addEventListener("click", async () => viewPhotos([await loadPhoto(g.photoId)], 0, g.name));
+    }, { big: true });
+  }
+
   function pieceSheet(p) {
     const isNew = !p;
     p = p || { name: "", date: "", clay: "", glazes: [], notes: "" };
@@ -1857,7 +1958,7 @@ import {
       };
       showKind(); kind.addEventListener("change", showKind);
       el.querySelector("form").addEventListener("click", (e) => {
-        const op = e.target.closest("[data-open-piece]"); if (op) pieceSheet(pieceById(op.dataset.openPiece));
+        const op = e.target.closest("[data-open-piece]"); if (op) pieceView(pieceById(op.dataset.openPiece));
       });
       wireForm(el);
       el.querySelector("#g-cancel").addEventListener("click", closeSheet);
@@ -2067,8 +2168,8 @@ import {
     if (gp) { Object.assign(state, { filterGlaze: gp.dataset.glazePieces, search: "", filterForm: "", filterTag: "", filterStatus: "", tab: "pieces" }); render(); window.scrollTo(0, 0); return; }
     const cp = t.closest("[data-clay-pieces]");
     if (cp) { Object.assign(state, { filterGlaze: "", search: cp.dataset.clayPieces, filterForm: "", filterTag: "", filterStatus: "", tab: "pieces" }); render(); window.scrollTo(0, 0); return; }
-    const pc = t.closest("[data-piece]"); if (pc) return pieceSheet(pieceById(pc.dataset.piece));
-    const gl = t.closest("[data-glaze]"); if (gl) return glazeSheet(glazeById(gl.dataset.glaze));
+    const pc = t.closest("[data-piece]"); if (pc) return pieceView(pieceById(pc.dataset.piece));
+    const gl = t.closest("[data-glaze]"); if (gl) return glazeView(glazeById(gl.dataset.glaze));
     const r = t.closest("[data-rating]"); if (r) { state.filterRating = r.dataset.rating; render(); return; }
     const ty = t.closest("[data-type]"); if (ty) { state.filterType = ty.dataset.type; render(); return; }
   });
