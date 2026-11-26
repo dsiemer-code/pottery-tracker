@@ -513,7 +513,7 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
   const local = { pieces: [], glazes: [], settings: {}, photos: {} };
@@ -1151,33 +1151,31 @@ import {
   }
 
   function glazesHTML() {
-    const q = state.gsearch.trim().toLowerCase(), fr = state.filterRating, ft = state.filterType, fo = state.filterOwner;
+    const q = state.gsearch.trim().toLowerCase(), fr = state.filterRating, ft = state.filterType, fo = state.filterOwner, fx = state.filterRuns;
     const owners = [...new Set(state.glazes.flatMap(ownersOf))].sort(ownerSort);
     const list = state.glazes
       .filter((g) => !ft || typeOf(g) === ft)
       .filter((g) => !fo || ownersOf(g).includes(fo))
-      .filter((g) => !fr || (fr === "runner" ? g.runner : g.rating === fr))
+      .filter((g) => !fr || g.rating === fr)
+      .filter((g) => !fx || (fx === "yes" ? !!g.runner : !g.runner))
       .filter((g) => { if (!q) return true; const t = [g.code, g.code && g.code.replace(/[\s.-]/g, ""), g.name, g.brand, g.color, g.notes, g.description, g.where, g.recipe, typeLabel(g.type), ...ownersOf(g)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); })
       .sort(glazeSort);
     const TYPE_PLURAL = { glaze: "Glazes", underglaze: "Underglazes", stain: "Stains", lowfire: "Low-fire glazes", slip: "Slips", clay: "Clay bodies" };
     const types = SUPPLY_TYPES.filter(([k]) => state.glazes.some((g) => typeOf(g) === k));
     const used = new Map();
     for (const p of state.pieces) for (const id of new Set((p.glazes || []).map((l) => l.glazeId))) used.set(id, (used.get(id) || 0) + 1);
+    const sel = (key, all, opts) => `<select data-filter="${key}" aria-label="${esc(all)}"><option value="">${esc(all)}</option>${opts.map(([v, l]) => `<option value="${esc(v)}"${state[key] === v ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     return `
       <section class="panel">
         <div class="toolbar">
           <input class="search" id="gq" type="search" placeholder="Search: blue, Amaco, runs…" value="${esc(state.gsearch)}" aria-label="Search glazes and supplies" autocomplete="off">
         </div>
-        ${types.length > 1 || ft ? `<div class="pills" style="margin-top:10px" role="group" aria-label="Show which kind">
-          <button type="button" data-type="" aria-pressed="${!ft}">Everything</button>
-          ${types.map(([k, label]) => `<button type="button" data-type="${k}" aria-pressed="${ft === k}">${esc(TYPE_PLURAL[k] || label)}</button>`).join("")}
-        </div>` : ""}
-        <div class="pills" style="margin-top:8px" role="group" aria-label="Show by rating">
-          <button type="button" data-rating="" aria-pressed="${!fr}">Any rating</button>
-          ${RATINGS.map(([k, label]) => `<button type="button" data-rating="${k}" aria-pressed="${fr === k}">${label}</button>`).join("")}
-          <button type="button" data-rating="runner" aria-pressed="${fr === "runner"}">Runners</button>
+        <div class="filters">
+          ${owners.length > 1 ? sel("filterOwner", "Everyone's", owners.map((o) => [o, o === STUDIO ? "Studio" : o + "'s"])) : ""}
+          ${types.length > 1 || ft ? sel("filterType", "All kinds", types.map(([k, label]) => [k, TYPE_PLURAL[k] || label])) : ""}
+          ${sel("filterRating", "Any rating", RATINGS)}
+          ${sel("filterRuns", "Runs or not", [["yes", "Runners only"], ["no", "Doesn't run"]])}
         </div>
-        ${owners.length > 1 ? `<div class="filters"><select data-filter="filterOwner" aria-label="Whose glazes"><option value="">Everyone's</option>${owners.map((o) => `<option value="${esc(o)}"${fo === o ? " selected" : ""}>${o === STUDIO ? "Studio" : esc(o) + "'s"}</option>`).join("")}</select></div>` : ""}
         <div class="count num">${plural(list.length, ft === "clay" ? "clay body" : "item")}${list.length !== state.glazes.length ? ` of ${state.glazes.length}` : ""}${canEdit() ? `${state.glazes.length ? ` · <button class="linkbtn" data-act="csv-glazes" type="button" style="padding:0">Download backup</button>` : ""} · <button class="linkbtn" data-act="import-glazes" type="button" style="padding:0">Import</button>` : ""}</div>
       </section>
       ${list.length ? `<div class="cards glz">${list.map((g) => {
