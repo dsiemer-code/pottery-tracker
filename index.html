@@ -86,6 +86,8 @@ nav.tabs button {
   font-weight: 600; font-size: 1rem; color: var(--muted);
 }
 nav.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+nav.tabs button { white-space: nowrap; }
+nav.tabs .tl-short { display: none; }
 .head-right .linkbtn { white-space: nowrap; }
 /* Phones: one-line title, a dot for "Synced", and less padding so the header takes about half the room */
 @media (max-width: 600px) {
@@ -99,7 +101,10 @@ nav.tabs button[aria-selected="true"] { background: var(--accent-soft); color: v
   .sync { font-size: .72rem; white-space: nowrap; }
   .sync.ok { font-size: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 4px; }
   nav.tabs { padding-block: 0 8px; }
-  nav.tabs button { padding: 7px 10px; font-size: .95rem; }
+  nav.tabs button { padding: 7px 8px; font-size: .95rem; }
+  /* Shorter tab names on a phone so all three fit on one line */
+  nav.tabs .tl-long { display: none; }
+  nav.tabs .tl-short { display: inline; }
 }
 
 main { padding-block: 18px 110px; display: grid; gap: 16px; }
@@ -462,8 +467,8 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
     </div>
     <nav class="tabs" role="tablist" id="tabs" hidden>
       <button role="tab" aria-selected="true" data-tab="pieces">Pieces</button>
-      <button role="tab" aria-selected="false" data-tab="students">Student pieces</button>
-      <button role="tab" aria-selected="false" data-tab="glazes">Glazes &amp; supplies</button>
+      <button role="tab" aria-selected="false" data-tab="students" aria-label="Student pieces"><span class="tl-long">Student pieces</span><span class="tl-short">Students</span></button>
+      <button role="tab" aria-selected="false" data-tab="glazes" aria-label="Glazes &amp; supplies"><span class="tl-long">Glazes &amp; supplies</span><span class="tl-short">Glazes</span></button>
     </nav>
   </div>
 </header>
