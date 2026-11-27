@@ -6,6 +6,7 @@ service cloud.firestore {
     //   Full access - listed under studio/shared/members with role "full": see and change everything, manage people.
     //   Student     - listed with role "student": see everything; add their own things (marked with their uid in "by")
     //                 and change or delete only those.
+    //   Everyone let in also has a private area (users/{their uid}) nobody else can see.
     //   Anyone else who signs in can only ask to be let in (studio/shared/requests) and see their own request.
     // The first person to open the app after these rules are published becomes the first "full" member
     // (that's what settings/setup records). Publish these before turning sign-up back on.
@@ -31,6 +32,11 @@ service cloud.firestore {
     }
     match /studio/shared/settings/studio {
       allow write: if full();
+    }
+
+    // Private to one person (their shows, and anything private added later): only they can see or change it
+    match /users/{uid}/{col}/{id} {
+      allow read, write: if member() && request.auth.uid == uid;
     }
 
     // First-time setup marker: anyone signed in can check it; it can only be made once, with its first member

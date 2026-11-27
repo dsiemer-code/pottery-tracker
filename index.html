@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-27T15:42:41Z">
+<meta name="app-build" content="2026-11-27T16:00:57Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -102,7 +102,8 @@ nav.tabs .tl-short { display: none; }
   .sync { font-size: .72rem; white-space: nowrap; }
   .sync.ok { font-size: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--good); margin-right: 4px; }
   nav.tabs { padding-block: 0 8px; }
-  nav.tabs button { padding: 7px 8px; font-size: .95rem; }
+  nav.tabs { gap: 2px; }
+  nav.tabs button { padding: 7px 4px; font-size: .9rem; }
   /* Shorter tab names on a phone so all three fit on one line */
   nav.tabs .tl-long { display: none; }
   nav.tabs .tl-short { display: inline; }
@@ -155,6 +156,8 @@ button.body:hover .name { color: var(--accent); }
 .cards.glz .body { padding: 10px 12px 8px; }
 .cards.glz .notes { -webkit-line-clamp: 5; }
 .cards.ideas .notes { -webkit-line-clamp: 6; }
+.show-when { font-weight: 600; color: var(--accent); font-size: .92rem; }
+.sect-past { margin: 6px 2px 0; }
 .idea-src { overflow-wrap: anywhere; }
 .cards.glz .foot { padding: 0 12px 10px; }
 .gchips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -474,6 +477,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
       <button role="tab" aria-selected="false" data-tab="students" aria-label="Student pieces"><span class="tl-long">Student pieces</span><span class="tl-short">Students</span></button>
       <button role="tab" aria-selected="false" data-tab="glazes" aria-label="Glazes &amp; supplies"><span class="tl-long">Glazes &amp; supplies</span><span class="tl-short">Glazes</span></button>
       <button role="tab" aria-selected="false" data-tab="ideas" aria-label="Inspiration"><span class="tl-long">Inspiration</span><span class="tl-short">Ideas</span></button>
+      <button role="tab" aria-selected="false" data-tab="shows" aria-label="My shows" hidden><span class="tl-long">My shows</span><span class="tl-short">Shows</span></button>
     </nav>
   </div>
 </header>
@@ -537,10 +541,10 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], ideas: [], isearch: "", filterBy: "", settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], ideas: [], isearch: "", filterBy: "", shows: [], showPast: false, settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
-  const local = { pieces: [], glazes: [], ideas: [], settings: {}, photos: {} };
+  const local = { pieces: [], glazes: [], ideas: [], shows: [], settings: {}, photos: {} };
 
   function todayStr() {
     const d = new Date();
@@ -792,6 +796,15 @@ import {
       if (!fs) { local[col] = local[col].filter((x) => x.id !== id); syncLocal(); return true; }
       return write(() => deleteDoc(ref(col, id)));
     },
+    // Things only this person sees (their shows) live under users/{their uid}
+    async saveMine(col, id, data) {
+      if (!fs) { const i = local[col].findIndex((x) => x.id === id); const rec = { id, ...data }; if (i >= 0) local[col][i] = rec; else local[col].push(rec); syncLocal(); return true; }
+      return write(() => setDoc(doc(fs, "users", uidPath, col, id), data));
+    },
+    async removeMine(col, id) {
+      if (!fs) { local[col] = local[col].filter((x) => x.id !== id); syncLocal(); return true; }
+      return write(() => deleteDoc(doc(fs, "users", uidPath, col, id)));
+    },
     // Studio-wide settings (the clay body list) live in one document
     async saveSettings(data) {
       if (!fs) { Object.assign(local.settings, data); syncLocal(); return true; }
@@ -858,6 +871,7 @@ import {
     state.pieces = local.pieces.slice();
     state.glazes = local.glazes.slice();
     state.ideas = local.ideas.slice();
+    state.shows = local.shows.slice();
     state.settings = { ...local.settings };
     render();
   }
@@ -939,6 +953,12 @@ import {
         { id: "i1", by: "demo-student", byName: "Maya", notes: "Love how the blue pools in the carved lines. Want to try this on a mug.", source: "Saw it at the spring show", photoIds: [pic("vase", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 5e6, example: true },
         { id: "i2", by: "demo", byName: "Me", notes: "Speckled white with a brown rim. Maybe B-Mix with a dark wash on the lip.", photoIds: [pic("mug", "#EDE3D8", "#C9B49A", "#7A2E1C")], createdAt: now - 2e6, example: true },
       ];
+      local.shows = [
+        { name: "Holiday Art Fair", start: d(-19), end: d(-20), hours: "Sat 9–5, Sun 10–4", venue: "Community Center gym", address: "120 Main St", fee: "75", paid: true, status: "accepted",
+          setupTime: "Fri 4–7 pm", boothSize: "10 × 10", indoor: "indoor", provided: ["table", "power"], bring: "Tablecloth, shelves, bubble wrap, card reader", notes: "Park in the back lot for load-in.", createdAt: now - 4e6, example: true },
+        { name: "Summer Street Market", start: d(40), venue: "Downtown, 3rd Street", fee: "35", paid: true, status: "accepted", indoor: "outdoor", provided: [], bring: "Tent, weights, folding table", notes: "Busy all day. Bring more small pieces next time.", createdAt: now - 5e6, example: true },
+        { name: "Spring Pottery Show", start: d(-60), venue: "Riverside Park", fee: "40", status: "interested", deadline: d(-30), indoor: "outdoor", provided: [], bring: "Tent and weights", createdAt: now - 3e6, example: true },
+      ].map((x, i) => ({ id: "s" + (i + 1), ...x }));
       local.settings = {};
       setSync("Demo mode"); state.role = "full";
       showApp(true); syncLocal();
@@ -952,7 +972,7 @@ import {
     // Signing in only proves who someone is. What they can do comes from the People list (studio/shared/members):
     // "full" or "student". Someone not on it sees a waiting screen and shows up under "Waiting to get in".
     let dataUnsubs = [];
-    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.ideas = []; state.members = []; state.requests = []; state.loaded = { p: false, g: false, i: false }; };
+    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.ideas = []; state.shows = []; state.members = []; state.requests = []; state.loaded = { p: false, g: false, i: false }; };
     function startData() {
       stopData();
       const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load the pieces. Check the Firestore rules in the setup guide.", "err"); };
@@ -972,6 +992,10 @@ import {
         state.settings = snap.exists() ? snap.data() : {}; render();
       }, onErr));
       if (state.role === "full") {
+        // Shows are private: they live under the person's own uid, which only they can read
+        dataUnsubs.push(onSnapshot(collection(fs, "users", uidPath, "shows"), (snap) => {
+          state.shows = snap.docs.map((d) => ({ id: d.id, ...d.data() })); state.loaded.s = true; render();
+        }, (e) => { console.error(e); state.loaded.s = "error"; render(); }));
         dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "members"), (snap) => { state.members = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); }, console.error));
         dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "requests"), (snap) => { state.requests = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); render(); }, console.error));
       }
@@ -1095,7 +1119,7 @@ import {
   };
   const priceRange = (p) => { const lo = p.priceLow, hi = p.priceHigh; if (!lo && !hi) return ""; return lo && hi && lo !== hi ? `$${lo}–$${hi}` : `$${lo || hi}`; };
   const piecePhotoIds = (p) => [...pieceIds(p), p.bottomPhotoId].filter(Boolean);
-  const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example) || state.ideas.some((x) => x.example);
+  const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example) || state.ideas.some((x) => x.example) || state.shows.some((x) => x.example);
   const glazePhoto = (g) => (g ? photoSrc(g.photoId) : "");
   const glazeThumb = (g, cls = "thumb") => { const src = glazePhoto(g); return src ? `<img class="${cls}" src="${esc(src)}" alt="">` : `<span class="${cls === "thumb" ? "gdot" : cls || "dot"}" aria-hidden="true"></span>`; };
   const POT_ICON = `<svg width="56" height="56" viewBox="0 0 26 26" aria-hidden="true"><path d="M9.5 5.5h7M10.3 5.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -1103,12 +1127,14 @@ import {
   // ---------- Render ----------
   function render() {
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
-    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : state.tab === "students" ? (canEdit() ? "Add student piece" : "Add my piece") : state.tab === "ideas" ? "Add inspiration" : "Add piece";
+    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : state.tab === "students" ? (canEdit() ? "Add student piece" : "Add my piece") : state.tab === "ideas" ? "Add inspiration" : state.tab === "shows" ? "Add show" : "Add piece";
     const v = document.getElementById("view");
     const active = document.activeElement && document.activeElement.id;
     let caret = active === "q" || active === "gq" || active === "iq" ? document.activeElement.selectionStart : null;
     const member = !fs || !!state.role, signedIn = !fs || !!state.me;
     document.getElementById("tabs").hidden = !signedIn || !member;
+    document.querySelector('nav.tabs [data-tab="shows"]').hidden = !canEdit();
+    if (state.tab === "shows" && !canEdit()) state.tab = "pieces";
     document.getElementById("fab").hidden = !signedIn || !(canEdit() || (state.tab === "students" && state.role === "student") || (state.tab === "ideas" && !!state.role));
     document.getElementById("people").hidden = !signedIn || !canEdit();
     const pn = document.getElementById("people-n"); pn.hidden = !state.requests.length; pn.textContent = state.requests.length;
@@ -1119,6 +1145,7 @@ import {
     else if (state.tab === "glazes") html += glazesHTML();
     else if (state.tab === "students") html += piecesHTML(true);
     else if (state.tab === "ideas") html += ideasHTML();
+    else if (state.tab === "shows") html += showsHTML();
     else html += piecesHTML();
     // Remember which card is at the top of the screen, so when the list changes (someone else adds or removes a piece)
     // that card stays exactly where it was instead of everything shifting under her
@@ -1126,8 +1153,9 @@ import {
     if (window.scrollY > 0 && v.dataset.tab === state.tab) {
       const headBottom = document.querySelector("header").getBoundingClientRect().bottom;
       const card = [...v.querySelectorAll(".card")].find((c) => c.getBoundingClientRect().bottom > headBottom + 8);
-      const key = card && card.querySelector("[data-piece], [data-glaze], [data-idea]");
-      if (key) anchor = { sel: key.dataset.piece ? `[data-piece="${CSS.escape(key.dataset.piece)}"]` : key.dataset.idea ? `[data-idea="${CSS.escape(key.dataset.idea)}"]` : `[data-glaze="${CSS.escape(key.dataset.glaze)}"]`, top: card.getBoundingClientRect().top };
+      const key = card && card.querySelector("[data-piece], [data-glaze], [data-idea], [data-show]");
+      const att = key && ["piece", "idea", "show", "glaze"].find((a) => key.dataset[a]);
+      if (att) anchor = { sel: `[data-${att}="${CSS.escape(key.dataset[att])}"]`, top: card.getBoundingClientRect().top };
     }
     // While she's typing or dictating into a search box, swap everything around it but leave the box itself alone.
     // Replacing it would end iPhone dictation after the first word.
@@ -2255,6 +2283,138 @@ import {
     }, { big: true, ro: !canEditIdea(it) });
   }
 
+  // ---------- My shows (private) ----------
+  // Craft and pottery shows she's thinking about or doing: where, when, what it costs, setting up.
+  // Saved under her own uid, so nobody else (not even other full access) can see them. No sales here.
+  const SHOW_STATUS = [["interested", "Thinking about it"], ["applied", "Applied"], ["accepted", "Accepted"], ["declined", "Not accepted"], ["skipped", "Not going"]];
+  const SHOW_PROVIDED = [["table", "Table"], ["chairs", "Chairs"], ["tent", "Tent"], ["power", "Electricity"], ["wifi", "Wi-Fi"]];
+  const showStatus = (x) => (SHOW_STATUS.find(([k]) => k === x.status) || [])[1] || "";
+  const showDays = (x) => (x.start && x.end && x.end !== x.start ? `${dateLabel(x.start).replace(/, \d{4}$/, "")} – ${dateLabel(x.end)}` : dateLabel(x.start));
+  const showLast = (x) => x.end || x.start || "";
+  const money = (v) => (v ? `$${v}` : "");
+
+  function showsHTML() {
+    if (fs && !state.loaded.s) return `<section class="panel"><div class="empty">Loading your shows…</div></section>`;
+    if (state.loaded.s === "error") return `<section class="panel"><div class="empty">Couldn't load your shows. The Firestore rules may need updating.</div></section>`;
+    const today = todayStr();
+    const upcoming = state.shows.filter((x) => !showLast(x) || showLast(x) >= today).sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999"));
+    const past = state.shows.filter((x) => showLast(x) && showLast(x) < today).sort((a, b) => showLast(b).localeCompare(showLast(a)));
+    return `
+      <section class="panel">
+        <p class="hint" style="margin:0">Only you can see your shows. Keep track of where they are, what they cost and how setup works.</p>
+        ${state.shows.length ? `<div class="count num" style="margin-top:6px">${plural(upcoming.length, "upcoming show")}${past.length ? ` · ${past.length} past` : ""}</div>` : ""}
+      </section>
+      ${upcoming.length ? `<div class="cards">${upcoming.map(showCard).join("")}</div>`
+        : `<section class="panel"><div class="empty">${state.shows.length ? "No upcoming shows." : "No shows yet. Tap “Add show” to save one."}</div></section>`}
+      ${past.length ? `<button type="button" class="linkbtn sect-past" data-act="show-past">${state.showPast ? "Hide" : "Show"} past shows (${past.length})</button>
+        ${state.showPast ? `<div class="cards">${past.map(showCard).join("")}</div>` : ""}` : ""}`;
+  }
+
+  function showCard(x) {
+    const st = showStatus(x);
+    const where = [x.venue, x.address].filter(Boolean).join(", ");
+    const cost = [x.fee ? `Booth ${money(x.fee)}${x.paid ? " (paid)" : ""}` : "", x.setupTime ? `Setup ${x.setupTime}` : ""].filter(Boolean).join(" · ");
+    const due = x.deadline && x.status === "interested" && x.deadline >= todayStr() ? `Apply by ${dateLabel(x.deadline)}` : "";
+    return `<article class="card">
+      <button type="button" class="body" data-show="${esc(x.id)}" aria-label="Open ${esc(x.name)}">
+        <span class="name">${esc(x.name)}</span>
+        ${x.start ? `<span class="show-when">${esc(showDays(x))}</span>` : ""}
+        ${where ? `<span class="meta">${esc(where)}</span>` : ""}
+        ${cost ? `<span class="meta">${esc(cost)}</span>` : ""}
+        ${st || due || x.example ? `<span class="chips">${st ? `<span class="chip ${x.status === "accepted" ? "love" : x.status === "declined" || x.status === "skipped" ? "no" : "prog"}">${esc(st)}</span>` : ""}${due ? `<span class="chip">${esc(due)}</span>` : ""}${x.example ? `<span class="chip ex">Example</span>` : ""}</span>` : ""}
+        ${x.notes ? `<span class="notes">${esc(x.notes)}</span>` : ""}
+      </button>
+    </article>`;
+  }
+
+  function showView(x) {
+    if (!x) return;
+    const st = showStatus(x);
+    const provided = SHOW_PROVIDED.filter(([k]) => (x.provided || []).includes(k)).map(([, l]) => l).join(", ");
+    openSheet(`
+      <div class="vhead"><h3>${esc(x.name)}</h3>
+        ${x.start ? `<div class="vsub">${esc(showDays(x))}</div>` : ""}
+        ${st ? `<div class="chips"><span class="chip">${esc(st)}</span></div>` : ""}</div>
+      ${vSect("When and where", vList(vRow("Dates", showDays(x)) + vRow("Hours", x.hours) + vRow("Place", x.venue) + vRow("Address", x.address)))}
+      ${vSect("Cost", vList(vRow("Booth fee", x.fee ? money(x.fee) + (x.paid ? " (paid)" : " (not paid yet)") : "") + vRow("Other costs", x.otherCosts)))}
+      ${vSect("Applying", vList(vRow("Apply by", dateLabel(x.deadline)) + vRow("Status", st) + vRow("Contact", x.contact) + vRow("Website", x.website)))}
+      ${vSect("Setup", vList(vRow("Setup time", x.setupTime) + vRow("Take down", x.teardown) + vRow("Booth size", x.boothSize) + vRow("Inside or outside", x.indoor === "indoor" ? "Inside" : x.indoor === "outdoor" ? "Outside" : "") + vRow("They provide", provided))
+        + vText("What to bring", x.bring))}
+      ${vSect("Notes", vText("", x.notes))}
+      ${viewActions(x.id)}`, (el) => {
+      el.classList.add("view");
+      wireView(el, () => showSheet(x));
+    }, { big: true });
+  }
+
+  function showSheet(x) {
+    const isNew = !x;
+    x = x || { name: "", provided: [] };
+    const dateIn = (id, label, val) => `<label class="f">${label}<input type="date" id="${id}" value="${esc(val || "")}"></label>`;
+    openSheet(`
+      <h3>${isNew ? "Add a show" : "Edit show"}</h3>
+      <form id="sform" novalidate>
+        <div class="fgrid">
+          <label class="f full">Show<input id="s-name" required value="${esc(x.name)}" placeholder="e.g. Holiday Art Fair" ${TEXT_ATTRS} autocapitalize="words"></label>
+          ${dateIn("s-start", "First day", x.start)}
+          ${dateIn("s-end", "Last day (if more than one)", x.end)}
+          <div class="f full"><span>Status</span>${pillSet("s-status", SHOW_STATUS, [x.status || ""], { single: true, label: "Status" })}</div>
+        </div>
+        <div class="sects">
+          ${sect("where", "When and where", `
+            ${textIn("s-hours", "Hours", x.hours, "e.g. Sat 9–5, Sun 10–4", { full: true })}
+            ${textIn("s-venue", "Place", x.venue, "e.g. Community Center", { full: true })}
+            ${textIn("s-address", "Address", x.address, "Street, town", { full: true })}`)}
+          ${sect("cost", "Cost", `
+            ${numIn("s-fee", "Booth fee ($)", x.fee, "e.g. 75", { pre: "$" })}
+            <div class="f"><span>Paid?</span>${pillSet("s-paid", [["yes", "Paid"]], [x.paid ? "yes" : ""], { label: "Paid" })}</div>
+            ${textIn("s-other", "Other costs", x.otherCosts, "e.g. $10 parking, jury fee", { full: true })}`)}
+          ${sect("apply", "Applying", `
+            ${dateIn("s-deadline", "Apply by", x.deadline)}
+            ${textIn("s-contact", "Contact", x.contact, "Name, phone or email")}
+            ${textIn("s-web", "Website", x.website, "Where to apply or read more", { full: true })}`)}
+          ${sect("setup", "Setup", `
+            ${textIn("s-setup", "Setup time", x.setupTime, "e.g. Fri 4–7 pm")}
+            ${textIn("s-teardown", "Take down", x.teardown, "e.g. Sun after 4")}
+            ${textIn("s-booth", "Booth size", x.boothSize, "e.g. 10 × 10")}
+            <div class="f"><span>Inside or outside</span>${pillSet("s-indoor", [["indoor", "Inside"], ["outdoor", "Outside"]], [x.indoor || ""], { single: true, label: "Inside or outside" })}</div>
+            <div class="f full"><span>They provide</span>${pillSet("s-provided", SHOW_PROVIDED, x.provided || [], { label: "They provide" })}</div>
+            <label class="f full">What to bring<textarea id="s-bring" rows="3" placeholder="Tent, weights, tablecloth, shelves, card reader…" ${TEXT_ATTRS} autocapitalize="sentences">${esc(x.bring)}</textarea></label>`)}
+          ${sect("notes", "Notes", `
+            <label class="f full">Notes<textarea id="s-notes" rows="4" placeholder="Parking, load-in, how it went, go again next year?" ${TEXT_ATTRS} autocapitalize="sentences">${esc(x.notes)}</textarea></label>`)}
+        </div>
+      </form>
+      <div class="actions">
+        ${isNew ? "" : `<button class="btn danger" id="s-del" type="button">Delete</button>`}
+        <div class="right"><button class="btn ghost" type="button" id="s-cancel">Cancel</button><button class="btn" type="submit" form="sform">${isNew ? "Add show" : "Save"}</button></div>
+      </div>`, (el) => {
+      wireForm(el);
+      el.querySelector("#s-cancel").addEventListener("click", closeSheet);
+      el.querySelector("#sform").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const v = (id) => el.querySelector("#" + id).value.trim();
+        const name = v("s-name");
+        if (!name) { el.querySelector("#s-name").focus(); toast("Give the show a name.", "warn"); return; }
+        let start = v("s-start"), end = v("s-end");
+        if (!start && end) { start = end; end = ""; }
+        if (end && end < start) [start, end] = [end, start];
+        const data = {
+          name, start, end: end === start ? "" : end, status: readPills(el, "s-status")[0] || "",
+          hours: v("s-hours"), venue: v("s-venue"), address: v("s-address"),
+          fee: v("s-fee").replace(/^\$/, ""), paid: readPills(el, "s-paid").includes("yes"), otherCosts: v("s-other"),
+          deadline: v("s-deadline"), contact: v("s-contact"), website: v("s-web"),
+          setupTime: v("s-setup"), teardown: v("s-teardown"), boothSize: v("s-booth"), indoor: readPills(el, "s-indoor")[0] || "", provided: readPills(el, "s-provided"), bring: v("s-bring"),
+          notes: v("s-notes"), createdAt: x.createdAt || Date.now(), updatedAt: Date.now(),
+        };
+        if (x.example) data.example = true;
+        if (await api.saveMine("shows", x.id || uid(), data)) { closeSheet(); toast(isNew ? "Show added" : "Saved", "ok"); }
+      });
+      if (!isNew) armDelete(el.querySelector("#s-del"), "Delete", async () => {
+        if (await api.removeMine("shows", x.id)) { closeSheet(); toast("Show deleted", "ok"); }
+      });
+    }, { big: true });
+  }
+
   // Glazes, underglazes, clay bodies and other supplies all use this popup
   function glazeSheet(g, { type = "glaze" } = {}) {
     const isNew = !g;
@@ -2362,6 +2522,7 @@ import {
     for (const p of state.pieces.filter((x) => x.example)) { await api.remove("pieces", p.id); pieceIds(p).forEach(dropPhoto); }
     for (const g of state.glazes.filter((x) => x.example)) { await api.remove("glazes", g.id); dropPhoto(g.photoId); }
     for (const it of state.ideas.filter((x) => x.example)) { await api.remove("ideas", it.id); ideaIds(it).forEach(dropPhoto); }
+    for (const sh of state.shows.filter((x) => x.example)) await api.removeMine("shows", sh.id);
     toast("Examples removed", "ok");
   }
 
@@ -2537,7 +2698,7 @@ import {
   document.getElementById("signin").addEventListener("click", (e) => {
     const b = e.target.closest("[data-si]"); if (b) setSiMode(b.dataset.si);
   });
-  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : state.tab === "ideas" ? ideaSheet(null) : pieceSheet(null, { student: state.tab === "students" })));
+  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : state.tab === "ideas" ? ideaSheet(null) : state.tab === "shows" ? showSheet(null) : pieceSheet(null, { student: state.tab === "students" })));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
   function loadSlides(strip, i) {
@@ -2564,6 +2725,8 @@ import {
     const zi = t.closest("[data-zoom-idea]");
     if (zi) { const it = ideaById(zi.dataset.zoomIdea); if (it) viewPhotos(await Promise.all(ideaIds(it).map(loadPhoto)), Number(zi.dataset.i || 0), ideaCaption(it)); return; }
     const ic = t.closest("[data-idea]"); if (ic) return ideaView(ideaById(ic.dataset.idea));
+    const sc = t.closest("[data-show]"); if (sc) return showView(state.shows.find((x) => x.id === sc.dataset.show));
+    if (t.closest("[data-act='show-past']")) { state.showPast = !state.showPast; return render(); }
     if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "" }); return render(); }
     if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
     const sa = t.closest("[data-sarr]");
