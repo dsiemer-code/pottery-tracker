@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-27T01:58:00Z">
+<meta name="app-build" content="2026-11-27T15:35:25Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -166,6 +166,7 @@ button.gchip { border: 0; cursor: pointer; }
 .chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .chip.love { background: var(--good-soft); color: var(--good); }
 .chip.no { background: var(--warn-soft); color: var(--warn); }
+.chip.nobuy { background: var(--warn-soft); color: var(--danger); }
 .chip.ex { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
 
 /* Controls */
@@ -514,7 +515,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 {
-  const RATINGS = [["love", "Love it"], ["ok", "It's OK"], ["no", "Not for me"]];
+  const RATINGS = [["love", "Love it"], ["ok", "It's OK"], ["no", "Not for me"], ["nobuy", "Don't buy"]];
   const ratingLabel = (r) => (RATINGS.find(([k]) => k === r) || [])[1] || "";
   const MAX_PHOTOS = 10;
   // Typing boxes for names and notes: no contact autofill (Safari treats "Name" as a person's name), spell check on
@@ -2278,7 +2279,7 @@ import {
           <div class="f full"><span>Who has it</span>${pillSet("g-owners", ownerList, ownersNow, { label: "Who has it" })}
             <span class="hint" style="font-weight:400">Studio is the main studio. To list someone else here, tick “Glaze owner” for them in People.</span></div>
           <label class="f">Kind<select id="g-type">${SUPPLY_TYPES.map(([k, l]) => `<option value="${k}"${k === typeOf(g) ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-          <div class="f full"><span>Did you like it?</span>${pillSet("g-rating", RATINGS, [g.rating || ""], { single: true, label: "Did you like it?" })}</div>
+          <div class="f full"><span>Rating</span>${pillSet("g-rating", RATINGS, [g.rating || ""], { single: true, label: "Rating" })}</div>
         </div>
         <div class="sects">
           ${sect("buy", "Buying", `
