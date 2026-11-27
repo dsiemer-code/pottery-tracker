@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-27T16:00:57Z">
+<meta name="app-build" content="2026-11-27T16:04:16Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -182,6 +182,9 @@ button.gchip { border: 0; cursor: pointer; }
 .linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 6px 4px; }
 input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; min-width: 0; font-size: 16px; }
 textarea { resize: vertical; min-height: 96px; }
+/* iPhone draws date boxes wider than the screen and shorter than the others; keep them inside their box and the same height */
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; min-height: 46px; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .f { display: grid; gap: 4px; font-size: .88rem; font-weight: 600; color: var(--muted); min-width: 0; }
 .fgrid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
 .fgrid .full { grid-column: 1 / -1; }
