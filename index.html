@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-27T15:35:25Z">
+<meta name="app-build" content="2026-11-27T15:42:41Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -2415,7 +2415,9 @@ import {
     const head = (rows.shift() || []).map((h) => h.trim().toLowerCase());
     const col = {}; for (const [k, names] of Object.entries(IMPORT_COLS)) { const i = head.findIndex((h) => names.includes(h)); if (i >= 0) col[k] = i; }
     if (col.name == null) return toast("That file needs a column called Name. Save it from Excel as CSV, or use a Download backup file.", "warn");
-    const added = [], filled = []; let same = 0;
+    // For each glaze already here, two possible changes: "blanks" (only what's empty in the app) and
+    // "changes" (everything the file has filled in that differs). Which one is used is her choice below.
+    const added = [], found = [];
     const pool = state.glazes.slice();
     for (const r of rows) {
       const get = (k) => (col[k] == null ? "" : (r[col[k]] || "").trim());
@@ -2435,22 +2437,61 @@ import {
       const match = (rec.code && pool.find((g) => g.code && sameCode(g.code, rec.code)))
         || pool.find((g) => (g.name || "").trim().toLowerCase() === nm && (!g.code || !rec.code || sameCode(g.code, rec.code)));
       if (match) {
-        const blanks = {};
-        for (const [k, v] of Object.entries(rec)) if (v && k !== "type" && k !== "owners" && !match[k]) blanks[k] = v;
+        const blanks = {}, changes = {};
+        for (const [k, v] of Object.entries(rec)) {
+          if (!v || k === "owners") continue;
+          if (k === "type" && !typeTxt) continue; // no Kind in the file: leave it
+          if (k === "type" ? typeOf(match) === v : String(match[k] ?? "").trim() === String(v).trim()) continue;
+          changes[k] = v;
+          if (!match[k] && k !== "type") blanks[k] = v;
+        }
         // Owners are added to, never replaced
-        if (rec.owners && rec.owners.some((o) => !ownersOf(match).includes(o))) blanks.owners = [...new Set([...ownersOf(match), ...rec.owners])];
-        if (Object.keys(blanks).length) filled.push({ g: match, blanks }); else same++;
+        if (rec.owners && rec.owners.some((o) => !ownersOf(match).includes(o))) blanks.owners = changes.owners = [...new Set([...ownersOf(match), ...rec.owners])];
+        found.push({ g: match, blanks, changes });
       } else {
         const g = { id: uid(), ...rec, photoId: "", createdAt: Date.now() + added.length };
         added.push(g); pool.push(g);
       }
     }
-    if (!added.length && !filled.length) return toast(same ? "Everything in that file is already here." : "Didn't find any glazes in that file.", "warn");
-    const msg = [added.length ? `add ${(added.length === 1 ? "1 new glaze or supply" : added.length + " new glazes and supplies")}` : "", filled.length ? `fill in missing details on ${(filled.length === 1 ? "1" : filled.length)} you already have` : ""].filter(Boolean).join(" and ");
-    if (!confirm(`This will ${msg}. Nothing already filled in gets changed. Go ahead?`)) return;
+    const fill = found.filter((f) => Object.keys(f.blanks).length), upd = found.filter((f) => Object.keys(f.changes).length);
+    if (!added.length && !upd.length) return toast(found.length ? "Everything in that file is already here." : "Didn't find any glazes in that file.", "warn");
+    const FIELD = { code: "Code", name: "Name", type: "Kind", brand: "Maker", color: "Color", size: "Size", price: "Price", where: "Where to buy", cone: "Fire temp", bisque: "Bisque",
+      clayType: "Clay it works on", runner: "Runner", shrinkage: "Shrinkage", rating: "Rating", description: "Description", recipe: "Recipe", notes: "Notes", owners: "Owners" };
+    const show = (k, v) => (k === "rating" ? ratingLabel(v) : k === "type" ? typeLabel(v) : k === "runner" ? (v ? "Yes" : "No") : Array.isArray(v) ? v.join(", ") : String(v ?? ""));
+    const short = (t) => (t.length > 40 ? t.slice(0, 40) + "…" : t);
+    const changeList = upd.map(({ g, changes }) => `<li><b>${esc(gLabel(g))}</b>: ${Object.entries(changes).map(([k, v]) =>
+      `${FIELD[k] || k} ${g[k] || k === "type" ? `<s>${esc(short(show(k, k === "type" ? typeOf(g) : k === "owners" ? ownersOf(g) : g[k])))}</s> → ` : ""}${esc(short(show(k, v)))}`).join("; ")}</li>`).join("");
+    const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
+    const choice = await new Promise((done) => {
+      openSheet(`<h3>Import ${esc(file.name || "file")}</h3>
+        <ul style="margin:0 0 12px;padding-left:18px;display:grid;gap:4px">
+          ${added.length ? `<li>${n(added.length, "new glaze or supply", "new glazes and supplies")} to add</li>` : ""}
+          ${upd.length ? `<li>${n(upd.length, "glaze you already have", "glazes you already have")} where the file says something different${fill.length ? ` (${fill.length} of them just have empty details to fill in)` : ""}</li>` : ""}
+        </ul>
+        ${upd.length ? `<details class="im-changes" style="margin:0 0 12px"><summary>See what would change</summary><ul class="hint" style="margin:8px 0 0;padding-left:18px;display:grid;gap:6px;max-height:40vh;overflow:auto">${changeList}</ul></details>
+        <div class="f full"><span>For glazes you already have</span>${pillSet("im-mode", [["fill", "Fill in blanks only"], ["update", "Update from this file"]], ["fill"], { single: true, label: "For glazes you already have" })}</div>
+        <p class="hint" id="im-say" style="margin:6px 0 12px"></p>` : ""}
+        <div class="actions"><div class="right"><button class="btn ghost" type="button" id="im-no">Cancel</button><button class="btn" type="button" id="im-yes">Import</button></div></div>`, (el) => {
+        const say = el.querySelector("#im-say");
+        const mode = () => (el.querySelector('#im-mode [aria-checked="true"]') || {}).dataset?.v || "fill";
+        const tell = () => { if (say) say.textContent = mode() === "update"
+          ? "Anything the file has filled in replaces what's here. Blank cells in the file leave things alone, so nothing gets erased. Photos and pieces aren't touched."
+          : "Only details that are empty here get filled in. Nothing already filled in changes."; };
+        tell();
+        el.addEventListener("click", (e) => {
+          const b = e.target.closest("#im-mode [data-v]");
+          if (b) { el.querySelectorAll("#im-mode [data-v]").forEach((x) => x.setAttribute("aria-checked", String(x === b))); tell(); }
+        });
+        el.querySelector("#im-no").addEventListener("click", () => { closeSheet(); done(null); });
+        el.querySelector("#im-yes").addEventListener("click", () => { const m = mode(); closeSheet(); done(m); });
+      });
+    });
+    if (!choice) return;
+    if (!added.length && choice === "fill" && !fill.length) return toast("Nothing empty to fill in. Pick “Update from this file” to use the file's details.", "warn");
+    const apply = choice === "update" ? upd.map((f) => ({ g: f.g, set: f.changes })) : fill.map((f) => ({ g: f.g, set: f.blanks }));
     for (const g of added) { const { id, ...data } = g; await api.save("glazes", id, data); }
-    for (const { g, blanks } of filled) { const { id, ...data } = g; await api.save("glazes", id, { ...data, ...blanks }); }
-    toast(`Imported: ${added.length} added${filled.length ? `, ${filled.length} filled in` : ""}`, "ok");
+    for (const { g, set } of apply) { const { id, ...data } = g; await api.save("glazes", id, { ...data, ...set }); }
+    toast(`Imported: ${[added.length ? `${added.length} added` : "", apply.length ? `${apply.length} ${choice === "update" ? "updated" : "filled in"}` : ""].filter(Boolean).join(", ")}`, "ok");
   }
   // Columns for a sheet to fill in and import (same as the backup, minus the counts)
   const IMPORT_HEADERS = ["Code", "Name", "Kind", "Owners", "Manufacturer / supplier", "Color", "Size", "Price", "Best place to buy", "Fire temp", "Bisque temp",
@@ -2463,7 +2504,7 @@ import {
         <li><b>Owners</b>: who has it, separated by commas. Blank means Studio.</li>
         <li><b>Kind</b>: Glaze, Underglaze, Clay body… Blank means Glaze.</li>
         <li><b>Runner</b>: Yes if it runs.</li>
-        <li>Glazes already here (same code or name) only get their blanks filled in. Nothing gets erased.</li>
+        <li>Glazes already here (same code or name): you choose to fill in only their blanks, or update them from the file. Nothing gets erased.</li>
       </ul>
       <div class="actions" style="flex-wrap:wrap"><button class="btn ghost" type="button" id="im-blank">Download blank sheet</button>
         <div class="right"><button class="btn ghost" type="button" id="im-close">Cancel</button><button class="btn" type="button" id="im-go">Choose file</button></div></div>`, (el) => {
