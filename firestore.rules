@@ -6,7 +6,7 @@ service cloud.firestore {
     //   Full access - listed under studio/shared/members with role "full": see and change everything, manage people.
     //   Student     - listed with role "student": see everything; add their own things (marked with their uid in "by")
     //                 and change or delete only those.
-    //   Everyone let in also has a private area (users/{their uid}) nobody else can see.
+    //   Everyone let in also has a private area (users/{their uid}) only they and the admin can see.
     //   Anyone else who signs in can only ask to be let in (studio/shared/requests) and see their own request.
     // The first person to open the app after these rules are published becomes the first "full" member
     // (that's what settings/setup records). Publish these before turning sign-up back on.
@@ -15,6 +15,8 @@ service cloud.firestore {
     function setupPath() { return /databases/$(database)/documents/studio/shared/settings/setup; }
     function member() { return signedIn() && exists(memberPath()); }
     function full() { return member() && get(memberPath()).data.role == "full"; }
+    // The admin is a full access member marked hidden (they don't show in lists)
+    function admin() { return full() && get(memberPath()).data.hidden == true; }
     // People, requests and settings have their own rules below; everything else is the studio's records
     function records(col) { return !(col in ["members", "requests", "settings"]); }
     function mineBefore() { return resource.data.by == request.auth.uid; }
@@ -34,9 +36,9 @@ service cloud.firestore {
       allow write: if full();
     }
 
-    // Private to one person (their shows, and anything private added later): only they can see or change it
+    // Private to one person (their shows, and anything private added later): only they and the admin can see or change it
     match /users/{uid}/{col}/{id} {
-      allow read, write: if member() && request.auth.uid == uid;
+      allow read, write: if member() && (request.auth.uid == uid || admin());
     }
 
     // First-time setup marker: anyone signed in can check it; it can only be made once, with its first member
@@ -45,13 +47,16 @@ service cloud.firestore {
       allow create: if signedIn() && !exists(setupPath()) && existsAfter(memberPath());
     }
 
-    // People
+    // People. Only the admin can make someone admin (hidden), undo it, or remove the admin.
+    function hiddenAfter() { return request.resource.data.get("hidden", false) == true; }
+    function hiddenBefore() { return resource.data.get("hidden", false) == true; }
     match /studio/shared/members/{uid} {
       allow read: if member() || (signedIn() && request.auth.uid == uid);
-      allow create: if full()
+      allow create: if (full() && (admin() || !hiddenAfter()))
         || (signedIn() && request.auth.uid == uid && !exists(setupPath()) && existsAfter(setupPath()) && request.resource.data.role == "full");
-      allow update: if full() && (request.auth.uid != uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "short"]));
-      allow delete: if full() && request.auth.uid != uid;
+      allow update: if full() && (admin() || hiddenAfter() == hiddenBefore())
+        && (request.auth.uid != uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "short"]));
+      allow delete: if full() && request.auth.uid != uid && (admin() || !hiddenBefore());
     }
 
     // Asking to be let in

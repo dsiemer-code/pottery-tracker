@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-27T16:04:16Z">
+<meta name="app-build" content="2026-11-27T16:22:44Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -544,9 +544,10 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], ideas: [], isearch: "", filterBy: "", shows: [], showPast: false, settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], ideas: [], isearch: "", filterBy: "", shows: [], showPast: false, showsOf: "", settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
+  let switchShows = () => {}; // set once signed in (admin switching whose shows to look at)
   const local = { pieces: [], glazes: [], ideas: [], shows: [], settings: {}, photos: {} };
 
   function todayStr() {
@@ -802,11 +803,11 @@ import {
     // Things only this person sees (their shows) live under users/{their uid}
     async saveMine(col, id, data) {
       if (!fs) { const i = local[col].findIndex((x) => x.id === id); const rec = { id, ...data }; if (i >= 0) local[col][i] = rec; else local[col].push(rec); syncLocal(); return true; }
-      return write(() => setDoc(doc(fs, "users", uidPath, col, id), data));
+      return write(() => setDoc(doc(fs, "users", state.showsOf || uidPath, col, id), data));
     },
     async removeMine(col, id) {
       if (!fs) { local[col] = local[col].filter((x) => x.id !== id); syncLocal(); return true; }
-      return write(() => deleteDoc(doc(fs, "users", uidPath, col, id)));
+      return write(() => deleteDoc(doc(fs, "users", state.showsOf || uidPath, col, id)));
     },
     // Studio-wide settings (the clay body list) live in one document
     async saveSettings(data) {
@@ -974,8 +975,16 @@ import {
 
     // Signing in only proves who someone is. What they can do comes from the People list (studio/shared/members):
     // "full" or "student". Someone not on it sees a waiting screen and shows up under "Waiting to get in".
-    let dataUnsubs = [];
-    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.ideas = []; state.shows = []; state.members = []; state.requests = []; state.loaded = { p: false, g: false, i: false }; };
+    let dataUnsubs = [], showsUnsub = null;
+    function watchShows(who) {
+      if (showsUnsub) showsUnsub();
+      state.showsOf = who; state.shows = []; state.loaded.s = false;
+      showsUnsub = onSnapshot(collection(fs, "users", who, "shows"), (snap) => {
+        state.shows = snap.docs.map((d) => ({ id: d.id, ...d.data() })); state.loaded.s = true; render();
+      }, (e) => { console.error(e); state.loaded.s = "error"; render(); });
+    }
+    switchShows = (who) => { if (state.me && iAmAdmin()) watchShows(who || state.me.uid); render(); };
+    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.ideas = []; state.shows = []; state.showsOf = ""; state.members = []; state.requests = []; state.loaded = { p: false, g: false, i: false }; };
     function startData() {
       stopData();
       const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load the pieces. Check the Firestore rules in the setup guide.", "err"); };
@@ -995,10 +1004,9 @@ import {
         state.settings = snap.exists() ? snap.data() : {}; render();
       }, onErr));
       if (state.role === "full") {
-        // Shows are private: they live under the person's own uid, which only they can read
-        dataUnsubs.push(onSnapshot(collection(fs, "users", uidPath, "shows"), (snap) => {
-          state.shows = snap.docs.map((d) => ({ id: d.id, ...d.data() })); state.loaded.s = true; render();
-        }, (e) => { console.error(e); state.loaded.s = "error"; render(); }));
+        // Shows are private: they live under the person's own uid, which only they (and the admin) can read
+        watchShows(uidPath);
+        dataUnsubs.push(() => { if (showsUnsub) { showsUnsub(); showsUnsub = null; } });
         dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "members"), (snap) => { state.members = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); }, console.error));
         dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "requests"), (snap) => { state.requests = snap.docs.map((d) => ({ id: d.id, ...d.data() })); refreshPeople(); render(); }, console.error));
       }
@@ -1136,8 +1144,8 @@ import {
     let caret = active === "q" || active === "gq" || active === "iq" ? document.activeElement.selectionStart : null;
     const member = !fs || !!state.role, signedIn = !fs || !!state.me;
     document.getElementById("tabs").hidden = !signedIn || !member;
-    document.querySelector('nav.tabs [data-tab="shows"]').hidden = !canEdit();
-    if (state.tab === "shows" && !canEdit()) state.tab = "pieces";
+    document.querySelector('nav.tabs [data-tab="shows"]').hidden = !canSeeShows();
+    if (state.tab === "shows" && !canSeeShows()) state.tab = "pieces";
     document.getElementById("fab").hidden = !signedIn || !(canEdit() || (state.tab === "students" && state.role === "student") || (state.tab === "ideas" && !!state.role));
     document.getElementById("people").hidden = !signedIn || !canEdit();
     const pn = document.getElementById("people-n"); pn.hidden = !state.requests.length; pn.textContent = state.requests.length;
@@ -1312,6 +1320,8 @@ import {
   // An admin has full access but is kept out of sight: not listed in People (except to other admins), and not offered as an artist or glaze owner
   const roleOf = (m) => (m.hidden ? "admin" : m.role === "student" ? "student" : "full");
   const shown = () => state.members.filter((m) => !m.hidden);
+  // My shows: for full access people ticked "Shows" in People, and always for the admin (who can also look at theirs)
+  const canSeeShows = () => !fs || (canEdit() && !!state.myDoc && !!(state.myDoc.hidden || state.myDoc.shows));
   const iAmAdmin = () => { const m = state.me && state.members.find((x) => x.id === state.me.uid); return !!(m && m.hidden); };
   const canEdit = () => !fs || state.role === "full";
   const myUid = () => (state.me && state.me.uid) || (fs ? "" : "demo");
@@ -1405,6 +1415,7 @@ import {
         ${m.id === me ? `<span class="chip">You · ${roleOf(m) === "admin" ? "Admin (hidden)" : "Full access"}</span>`
           : `<div class="pp-acts"><select data-role="${esc(m.id)}" aria-label="Access for ${esc(m.name || m.email)}">${roleChoices(m).map(([k, l]) => `<option value="${k}"${roleOf(m) === k ? " selected" : ""}>${l}</option>`).join("")}</select>
              <label class="pp-own"><input type="checkbox" data-owner="${esc(m.id)}"${m.owner ? " checked" : ""}> Glaze owner</label>
+             ${roleOf(m) === "full" ? `<label class="pp-own" title="Gets a private My shows tab"><input type="checkbox" data-shows="${esc(m.id)}"${m.shows ? " checked" : ""}> Shows</label>` : ""}
              <button type="button" class="btn small danger" data-remove="${esc(m.id)}">Remove</button></div>`}
       </div>`).join("") || (everyone.length ? "" : `<p class="hint">Loading…</p>`);
     el.querySelectorAll("[data-remove]").forEach((b) => armDelete(b, "Remove", async () => {
@@ -1513,6 +1524,12 @@ import {
       el.querySelector("#pp-add-close").addEventListener("click", () => showAdd(false));
       el.querySelector("#pp-q").addEventListener("input", (e) => { state.ppSearch = e.target.value; refreshPeople(); });
       el.addEventListener("change", async (e) => {
+        const sw = e.target.closest("[data-shows]");
+        if (sw) {
+          try { await updateDoc(memberRef(sw.dataset.shows), { shows: sw.checked }); toast(sw.checked ? "They have a private Shows tab now" : "Shows tab turned off. Their shows are kept.", "ok"); }
+          catch (ex) { console.error(ex); toast("Couldn't change that. Try again.", "err"); refreshPeople(); }
+          return;
+        }
         const ow = e.target.closest("[data-owner]");
         if (ow) {
           try { await updateDoc(memberRef(ow.dataset.owner), { owner: ow.checked }); toast(ow.checked ? "They can be picked as a glaze owner now" : "Not a glaze owner anymore", "ok"); }
@@ -2297,12 +2314,17 @@ import {
   const money = (v) => (v ? `$${v}` : "");
 
   function showsHTML() {
-    if (fs && !state.loaded.s) return `<section class="panel"><div class="empty">Loading your shows…</div></section>`;
-    if (state.loaded.s === "error") return `<section class="panel"><div class="empty">Couldn't load your shows. The Firestore rules may need updating.</div></section>`;
+    // The admin can switch to anyone who has Shows turned on
+    const me = myUid(), others = fs && iAmAdmin() ? state.members.filter((m) => m.shows && m.id !== me) : [];
+    const whose = state.members.find((m) => m.id === state.showsOf && m.id !== me);
+    const pick = others.length ? `<section class="panel"><label class="f">Whose shows<select data-filter="showsOf" aria-label="Whose shows"><option value="${esc(me)}">Mine</option>${others.map((m) => `<option value="${esc(m.id)}"${state.showsOf === m.id ? " selected" : ""}>${esc(personName(m))}'s</option>`).join("")}</select></label>
+      ${whose ? `<p class="hint" style="margin:6px 0 0">You're looking at ${esc(personName(whose))}'s shows as admin. Anything you change here changes for them.</p>` : ""}</section>` : "";
+    if (fs && !state.loaded.s) return pick + `<section class="panel"><div class="empty">Loading shows…</div></section>`;
+    if (state.loaded.s === "error") return pick + `<section class="panel"><div class="empty">Couldn't load these shows. The Firestore rules may need updating.</div></section>`;
     const today = todayStr();
     const upcoming = state.shows.filter((x) => !showLast(x) || showLast(x) >= today).sort((a, b) => (a.start || "9999").localeCompare(b.start || "9999"));
     const past = state.shows.filter((x) => showLast(x) && showLast(x) < today).sort((a, b) => showLast(b).localeCompare(showLast(a)));
-    return `
+    return pick + `
       <section class="panel">
         <p class="hint" style="margin:0">Only you can see your shows. Keep track of where they are, what they cost and how setup works.</p>
         ${state.shows.length ? `<div class="count num" style="margin-top:6px">${plural(upcoming.length, "upcoming show")}${past.length ? ` · ${past.length} past` : ""}</div>` : ""}
@@ -2758,6 +2780,7 @@ import {
   });
   view.addEventListener("change", (e) => {
     const f = e.target.dataset && e.target.dataset.filter;
+    if (f === "showsOf") return switchShows(e.target.value);
     if (f) { state[f] = e.target.value; render(); }
   });
 
