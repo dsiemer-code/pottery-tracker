@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pottery Tracker</title>
 <meta name="theme-color" content="#9A4E2F">
-<meta name="app-build" content="2026-11-26T20:03:05Z">
+<meta name="app-build" content="2026-11-27T01:58:00Z">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pottery">
 <link rel="manifest" href="manifest.webmanifest">
@@ -154,6 +154,8 @@ button.body:hover .name { color: var(--accent); }
 .cards.glz .pic { aspect-ratio: 1; }
 .cards.glz .body { padding: 10px 12px 8px; }
 .cards.glz .notes { -webkit-line-clamp: 5; }
+.cards.ideas .notes { -webkit-line-clamp: 6; }
+.idea-src { overflow-wrap: anywhere; }
 .cards.glz .foot { padding: 0 12px 10px; }
 .gchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .gchip { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); max-width: 100%; }
@@ -470,6 +472,7 @@ details.sect[open] > summary { border-bottom: 1px solid var(--line); margin-bott
       <button role="tab" aria-selected="true" data-tab="pieces">Pieces</button>
       <button role="tab" aria-selected="false" data-tab="students" aria-label="Student pieces"><span class="tl-long">Student pieces</span><span class="tl-short">Students</span></button>
       <button role="tab" aria-selected="false" data-tab="glazes" aria-label="Glazes &amp; supplies"><span class="tl-long">Glazes &amp; supplies</span><span class="tl-short">Glazes</span></button>
+      <button role="tab" aria-selected="false" data-tab="ideas" aria-label="Inspiration"><span class="tl-long">Inspiration</span><span class="tl-short">Ideas</span></button>
     </nav>
   </div>
 </header>
@@ -533,10 +536,10 @@ import {
   const typeOf = (g) => g.type || "glaze";
   const typeLabel = (t) => (SUPPLY_TYPES.find(([k]) => k === (t || "glaze")) || [, "Other"])[1];
 
-  const state = { tab: "pieces", pieces: [], glazes: [], settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
+  const state = { tab: "pieces", pieces: [], glazes: [], ideas: [], isearch: "", filterBy: "", settings: {}, loaded: { p: false, g: false }, search: "", gsearch: "", filterGlaze: "", filterRating: "", filterType: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "", filterOwner: "Studio", filterRuns: "", pickOwner: "Studio", offline: false, strip: {}, role: null, me: null, members: [], requests: [], accessError: false };
 
   // Local-only fallback when saving isn't available (demo mode)
-  const local = { pieces: [], glazes: [], settings: {}, photos: {} };
+  const local = { pieces: [], glazes: [], ideas: [], settings: {}, photos: {} };
 
   function todayStr() {
     const d = new Date();
@@ -853,6 +856,7 @@ import {
   function syncLocal() {
     state.pieces = local.pieces.slice();
     state.glazes = local.glazes.slice();
+    state.ideas = local.ideas.slice();
     state.settings = { ...local.settings };
     render();
   }
@@ -930,6 +934,10 @@ import {
           clay: "B-Mix", glazes: [{ glazeId: "g1", name: "Floating Blue", coats: "2", method: "Dipped", where: "Inside", how: "" }],
           notes: "My first class piece.", photoIds: [pic("bowl", "#9DBFA6", "#C9B49A", "#3E5F8A")], createdAt: now - 1e6, example: true },
       ];
+      local.ideas = [
+        { id: "i1", by: "demo-student", byName: "Maya", notes: "Love how the blue pools in the carved lines. Want to try this on a mug.", source: "Saw it at the spring show", photoIds: [pic("vase", "#3E5F8A", "#C9B49A", "#8FB3C9")], createdAt: now - 5e6, example: true },
+        { id: "i2", by: "demo", byName: "Me", notes: "Speckled white with a brown rim. Maybe B-Mix with a dark wash on the lip.", photoIds: [pic("mug", "#EDE3D8", "#C9B49A", "#7A2E1C")], createdAt: now - 2e6, example: true },
+      ];
       local.settings = {};
       setSync("Demo mode"); state.role = "full";
       showApp(true); syncLocal();
@@ -943,7 +951,7 @@ import {
     // Signing in only proves who someone is. What they can do comes from the People list (studio/shared/members):
     // "full" or "student". Someone not on it sees a waiting screen and shows up under "Waiting to get in".
     let dataUnsubs = [];
-    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.members = []; state.requests = []; state.loaded = { p: false, g: false }; };
+    const stopData = () => { dataUnsubs.forEach((u) => u()); dataUnsubs = []; state.pieces = []; state.glazes = []; state.settings = {}; state.ideas = []; state.members = []; state.requests = []; state.loaded = { p: false, g: false, i: false }; };
     function startData() {
       stopData();
       const onErr = (e) => { console.error(e); setSync("Can't load"); toast("Couldn't load the pieces. Check the Firestore rules in the setup guide.", "err"); };
@@ -955,6 +963,10 @@ import {
         state.glazes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         state.loaded.g = true; setSync(syncLabel(snap)); render(); refreshPeople(); prefetchGlazePhotos();
       }, onErr));
+      dataUnsubs.push(onSnapshot(collection(fs, "studio", "shared", "ideas"), (snap) => {
+        state.ideas = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        state.loaded.i = true; render();
+      }, (e) => { console.error(e); state.loaded.i = "error"; render(); }));
       dataUnsubs.push(onSnapshot(doc(fs, "studio", "shared", "settings", "studio"), (snap) => {
         state.settings = snap.exists() ? snap.data() : {}; render();
       }, onErr));
@@ -1082,7 +1094,7 @@ import {
   };
   const priceRange = (p) => { const lo = p.priceLow, hi = p.priceHigh; if (!lo && !hi) return ""; return lo && hi && lo !== hi ? `$${lo}–$${hi}` : `$${lo || hi}`; };
   const piecePhotoIds = (p) => [...pieceIds(p), p.bottomPhotoId].filter(Boolean);
-  const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example);
+  const hasExamples = () => state.pieces.some((p) => p.example) || state.glazes.some((g) => g.example) || state.ideas.some((x) => x.example);
   const glazePhoto = (g) => (g ? photoSrc(g.photoId) : "");
   const glazeThumb = (g, cls = "thumb") => { const src = glazePhoto(g); return src ? `<img class="${cls}" src="${esc(src)}" alt="">` : `<span class="${cls === "thumb" ? "gdot" : cls || "dot"}" aria-hidden="true"></span>`; };
   const POT_ICON = `<svg width="56" height="56" viewBox="0 0 26 26" aria-hidden="true"><path d="M9.5 5.5h7M10.3 5.5c0 2.2-3.3 4-3.3 8.2 0 3.6 2.6 5.3 6 5.3s6-1.7 6-5.3c0-4.2-3.3-6-3.3-8.2" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -1090,13 +1102,13 @@ import {
   // ---------- Render ----------
   function render() {
     document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === state.tab)));
-    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : state.tab === "students" ? (canEdit() ? "Add student piece" : "Add my piece") : "Add piece";
+    document.getElementById("fab-label").textContent = state.tab === "glazes" ? (state.filterType ? `Add ${typeLabel(state.filterType).toLowerCase()}` : "Add glaze or supply") : state.tab === "students" ? (canEdit() ? "Add student piece" : "Add my piece") : state.tab === "ideas" ? "Add inspiration" : "Add piece";
     const v = document.getElementById("view");
     const active = document.activeElement && document.activeElement.id;
-    let caret = active === "q" || active === "gq" ? document.activeElement.selectionStart : null;
+    let caret = active === "q" || active === "gq" || active === "iq" ? document.activeElement.selectionStart : null;
     const member = !fs || !!state.role, signedIn = !fs || !!state.me;
     document.getElementById("tabs").hidden = !signedIn || !member;
-    document.getElementById("fab").hidden = !signedIn || !(canEdit() || (state.tab === "students" && state.role === "student"));
+    document.getElementById("fab").hidden = !signedIn || !(canEdit() || (state.tab === "students" && state.role === "student") || (state.tab === "ideas" && !!state.role));
     document.getElementById("people").hidden = !signedIn || !canEdit();
     const pn = document.getElementById("people-n"); pn.hidden = !state.requests.length; pn.textContent = state.requests.length;
     if (fs && !state.me) { v.innerHTML = ""; return; }
@@ -1105,6 +1117,7 @@ import {
     if (!(state.loaded.p && state.loaded.g)) html += `<div class="panel"><div class="empty">Loading your pieces…</div></div>`;
     else if (state.tab === "glazes") html += glazesHTML();
     else if (state.tab === "students") html += piecesHTML(true);
+    else if (state.tab === "ideas") html += ideasHTML();
     else html += piecesHTML();
     // Remember which card is at the top of the screen, so when the list changes (someone else adds or removes a piece)
     // that card stays exactly where it was instead of everything shifting under her
@@ -1112,12 +1125,12 @@ import {
     if (window.scrollY > 0 && v.dataset.tab === state.tab) {
       const headBottom = document.querySelector("header").getBoundingClientRect().bottom;
       const card = [...v.querySelectorAll(".card")].find((c) => c.getBoundingClientRect().bottom > headBottom + 8);
-      const key = card && card.querySelector("[data-piece], [data-glaze]");
-      if (key) anchor = { sel: key.dataset.piece ? `[data-piece="${CSS.escape(key.dataset.piece)}"]` : `[data-glaze="${CSS.escape(key.dataset.glaze)}"]`, top: card.getBoundingClientRect().top };
+      const key = card && card.querySelector("[data-piece], [data-glaze], [data-idea]");
+      if (key) anchor = { sel: key.dataset.piece ? `[data-piece="${CSS.escape(key.dataset.piece)}"]` : key.dataset.idea ? `[data-idea="${CSS.escape(key.dataset.idea)}"]` : `[data-glaze="${CSS.escape(key.dataset.glaze)}"]`, top: card.getBoundingClientRect().top };
     }
     // While she's typing or dictating into a search box, swap everything around it but leave the box itself alone.
     // Replacing it would end iPhone dictation after the first word.
-    const keep = (active === "q" || active === "gq") && document.getElementById(active);
+    const keep = (active === "q" || active === "gq" || active === "iq") && document.getElementById(active);
     const tmp = document.createElement("div"); tmp.innerHTML = html;
     const newQ = keep && tmp.querySelector("#" + active);
     const oldBar = newQ && keep.closest(".toolbar"), newBar = newQ && newQ.closest(".toolbar");
@@ -2092,6 +2105,155 @@ import {
     }, { big: true, ro: !canEditPiece(p) });
   }
 
+  // ---------- Inspiration ----------
+  // Anyone who's let in can add an idea: photos and notes, marked with who added it (by = their uid, byName = their
+  // name then). They can change or delete their own; full access can change or delete any.
+  const ideaById = (id) => state.ideas.find((x) => x.id === id);
+  const ideaIds = (it) => (Array.isArray(it.photoIds) ? it.photoIds : []);
+  const canEditIdea = (it) => canEdit() || (!!state.role && !!it && !!it.by && it.by === myUid());
+  // The name to show: their current name in People when we have it (full access), else the name saved with the idea
+  const ideaWho = (it) => { const m = state.members.find((x) => x.id === it.by); return (m && personName(m)) || (it.by && it.by === myUid() && myName()) || it.byName || "Someone"; };
+  const ideaWhen = (it) => new Date(it.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const ideaCaption = (it) => (it.by && it.by === myUid() ? "My inspiration" : `${ideaWho(it)}'s inspiration`);
+  const isLink = (t) => /^https?:\/\/\S+$/i.test((t || "").trim());
+  const srcHTML = (t) => (isLink(t) ? `<a href="${esc(t.trim())}" target="_blank" rel="noopener noreferrer">${esc(t.trim().replace(/^https?:\/\/(www\.)?/i, "").slice(0, 60))}</a>` : esc(t));
+
+  function ideasHTML() {
+    const q = state.isearch.trim().toLowerCase(), me = myUid();
+    // Who has added something, for the filter (uid → name), with "Mine" first
+    const people = new Map();
+    for (const it of state.ideas) if (it.by && !people.has(it.by)) people.set(it.by, ideaWho(it));
+    if (state.filterBy && !people.has(state.filterBy)) state.filterBy = "";
+    const all = state.ideas.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const list = all
+      .filter((it) => !state.filterBy || it.by === state.filterBy)
+      .filter((it) => { if (!q) return true; const t = [it.notes, it.source, ideaWho(it)].filter(Boolean).join(" ").toLowerCase(); return q.split(/\s+/).every((w) => t.includes(w)); });
+    const opts = [...people].sort((a, b) => (a[0] === me ? -1 : b[0] === me ? 1 : a[1].localeCompare(b[1])));
+    const filtered = !!(q || state.filterBy);
+    const loading = fs && !state.loaded.i;
+    return `
+      <section class="panel">
+        <div class="toolbar">
+          <input class="search" id="iq" type="search" placeholder="Search ideas" value="${esc(state.isearch)}" aria-label="Search inspiration" autocomplete="off">
+        </div>
+        <p class="hint" style="margin:0 0 8px">Photos and notes of things that inspire you. Everyone can see them; you can change your own.</p>
+        ${opts.length ? `<div class="filters"><select data-filter="filterBy" aria-label="Whose ideas"><option value="">Everyone</option>${opts.map(([id, n]) => `<option value="${esc(id)}"${state.filterBy === id ? " selected" : ""}>${id === me ? `Mine (${esc(n)})` : esc(n)}</option>`).join("")}</select></div>` : ""}
+        <div class="count num">${filtered ? `Showing ${list.length} of ${all.length} · <button class="linkbtn" data-act="clear-ideas" type="button" style="padding:0">Show all</button>` : all.length ? plural(all.length, "idea") : ""}</div>
+      </section>
+      ${list.length ? `<div class="cards ideas">${list.map(ideaCard).join("")}</div>`
+        : `<section class="panel"><div class="empty">${loading ? "Loading…" : state.loaded.i === "error" ? "Couldn't load the inspiration. The Firestore rules may need updating." : all.length ? "No ideas match. Try another search or person." : "No inspiration yet. Tap “Add inspiration” to save a photo with your notes."}</div></section>`}`;
+  }
+
+  function ideaCard(it) {
+    const ids = ideaIds(it), at = Math.min(state.strip[it.id] || 0, Math.max(0, ids.length - 1));
+    const slides = ids.map((id, i) => {
+      const src = i === 0 ? photoSrc(id) : photoCache.get(id) || "";
+      return `<button type="button" class="slide" data-zoom-idea="${esc(it.id)}" data-i="${i}" aria-label="See photo ${i + 1} bigger">${src ? `<img src="${esc(src)}" alt="">` : `<img data-pid="${esc(id)}" alt="">`}</button>`;
+    }).join("");
+    return `<article class="card">
+      ${ids.length ? `<div class="pic"><div class="strip" data-strip="${esc(it.id)}">${slides}</div>
+          ${ids.length > 1 ? `<button type="button" class="sarr l" data-sarr="-1" aria-label="Previous photo">‹</button><button type="button" class="sarr r" data-sarr="1" aria-label="Next photo">›</button><span class="more num" data-strip-n>${at + 1} / ${ids.length}</span>` : ""}</div>` : ""}
+      <button type="button" class="body" data-idea="${esc(it.id)}" aria-label="Open ${esc(ideaCaption(it))}">
+        <span class="name">${esc(ideaWho(it))}</span>
+        <span class="meta">${esc(ideaWhen(it))}${it.source ? ` · ${esc(it.source)}` : ""}</span>
+        ${it.example ? `<span class="chips"><span class="chip ex">Example</span></span>` : ""}
+        ${it.notes ? `<span class="notes">${esc(it.notes)}</span>` : ""}
+      </button>
+    </article>`;
+  }
+
+  function ideaView(it) {
+    if (!it) return;
+    const ids = ideaIds(it);
+    openSheet(`
+      <div class="vhead"><h3>${esc(ideaCaption(it))}</h3><div class="vsub">${esc(ideaWhen(it))}</div></div>
+      ${ids.length ? `<div class="vphotos${ids.length === 1 ? " one" : ""}">${ids.map((id, i) => `<button type="button" data-vph="${i}" aria-label="See photo ${i + 1} bigger"><img data-pid="${esc(id)}" alt=""></button>`).join("")}</div>` : ""}
+      ${vSect("Notes", vText("", it.notes))}
+      ${it.source ? vSect("Where it's from", `<p class="vtext idea-src">${srcHTML(it.source)}</p>`) : ""}
+      ${viewActions(it.id, canEditIdea(it))}`, (el) => {
+      el.classList.add("view");
+      wireView(el, () => ideaSheet(it));
+      el.querySelectorAll("img[data-pid]").forEach(async (img) => { const src = await loadPhoto(img.dataset.pid); if (src) img.src = src; });
+      el.querySelectorAll("[data-vph]").forEach((b) => b.addEventListener("click", async () => {
+        viewPhotos(await Promise.all(ids.map(loadPhoto)), Number(b.dataset.vph), ideaCaption(it));
+      }));
+    }, { big: true });
+  }
+
+  function ideaSheet(it) {
+    const isNew = !it;
+    it = it || { notes: "", source: "", photoIds: [], by: myUid() };
+    let photos = ideaIds(it).map((id) => ({ id, src: photoCache.get(id) || "" }));
+    const theirs = !isNew && it.by !== myUid();
+    openSheet(`
+      <h3>${isNew ? "Add inspiration" : theirs ? `Edit ${esc(ideaWho(it))}'s inspiration` : "Edit inspiration"}</h3>
+      <form id="iform" novalidate>
+        <div class="fgrid">
+          <div class="full">
+            <div class="sect-label">Photos</div>
+            <div class="photos" id="i-photos"></div>
+            <input class="vh" type="file" id="i-file" accept="image/*" multiple tabindex="-1" aria-hidden="true">
+          </div>
+          <label class="f full">Notes<textarea id="i-notes" rows="5" placeholder="What you like about it, what you'd try" ${TEXT_ATTRS} autocapitalize="sentences">${esc(it.notes)}</textarea></label>
+          ${textIn("i-source", "Where it's from (optional)", it.source, "e.g. a website, a show, a friend's piece", { full: true })}
+        </div>
+      </form>
+      <div class="actions">
+        ${isNew ? "" : `<button class="btn danger" id="i-del" type="button">Delete</button>`}
+        <div class="right"><button class="btn ghost" type="button" id="i-cancel">Cancel</button><button class="btn" type="submit" form="iform">${isNew ? "Add" : "Save"}</button></div>
+      </div>`, (el) => {
+      const box = el.querySelector("#i-photos");
+      const showPhotos = () => {
+        box.innerHTML = photos.map((ph, i) => photoTile(ph, i, { cover: i === 0 && photos.length > 1 })).join("")
+          + (photos.length < MAX_PHOTOS ? `<button type="button" class="ph-add" id="i-photo-add"><b>+</b>${photos.length ? "Add photo" : "Add photos"}</button>` : "");
+      };
+      showPhotos();
+      photos.forEach((ph) => { if (!ph.src) loadPhoto(ph.id).then((src) => { if (src) { ph.src = src; if (box.isConnected) showPhotos(); } }); });
+      box.addEventListener("click", async (e) => {
+        if (e.target.closest("#i-photo-add")) return el.querySelector("#i-file").click();
+        const b = e.target.closest("[data-ph-view],[data-ph-rm],[data-ph-rot],[data-ph-cover]"); if (!b) return;
+        const { phView, phRm, phRot, phCover } = b.dataset;
+        if (phView !== undefined) return viewPhotos(photos.map((x) => x.src), Number(phView), "Inspiration");
+        if (phRm !== undefined) { photos.splice(Number(phRm), 1); return showPhotos(); }
+        if (phCover !== undefined) { photos.unshift(photos.splice(Number(phCover), 1)[0]); showPhotos(); return toast("That photo now shows first"); }
+        const ph = photos[Number(phRot)]; b.disabled = true;
+        try { ph.src = await rotatePhoto(ph.src); ph.id = ""; } catch (ex) { console.error(ex); toast("Couldn't turn that photo.", "err"); }
+        showPhotos();
+      });
+      el.querySelector("#i-file").addEventListener("change", async (e) => {
+        const files = [...(e.target.files || [])]; e.target.value = "";
+        const room = MAX_PHOTOS - photos.length;
+        if (files.length > room) toast(`Up to ${MAX_PHOTOS} photos each; added the first ${room}.`, "warn");
+        const add = el.querySelector("#i-photo-add"); if (add) { add.disabled = true; add.lastChild.textContent = "Loading…"; }
+        const take = files.slice(0, room);
+        for (const [n, f] of take.entries()) {
+          try { const src = await addPhoto(f, take.length > 1 ? `Photo ${n + 1} of ${take.length}` : "Crop the photo"); if (src) photos.push({ id: "", src }); }
+          catch (ex) { console.error(ex); toast("Couldn't open that photo. Try a JPG or PNG.", "err"); }
+        }
+        showPhotos();
+      });
+      el.querySelector("#i-cancel").addEventListener("click", closeSheet);
+      el.querySelector("#iform").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const notes = el.querySelector("#i-notes").value.trim(), source = el.querySelector("#i-source").value.trim();
+        if (!photos.length && !notes) { toast("Add a photo or some notes.", "warn"); return; }
+        if (photos.some((ph) => !ph.src && !ph.id)) { toast("A photo is still loading. Try again in a moment.", "warn"); return; }
+        const photoIds = photos.map((ph) => ph.id || storePhoto(ph.src));
+        const by = it.by || myUid();
+        const data = { notes, source, photoIds, by, byName: by === myUid() ? myName() || (state.me && state.me.email.split("@")[0]) || it.byName || "Me" : it.byName || "", createdAt: it.createdAt || Date.now(), updatedAt: Date.now() };
+        if (it.example) data.example = true;
+        const ok = await api.save("ideas", it.id || uid(), data);
+        if (ok) {
+          ideaIds(it).filter((id) => !photoIds.includes(id)).forEach(dropPhoto); // removed or rotated
+          closeSheet(); toast(isNew ? "Inspiration added" : "Saved", "ok");
+        }
+      });
+      if (!isNew) armDelete(el.querySelector("#i-del"), "Delete", async () => {
+        if (await api.remove("ideas", it.id)) { ideaIds(it).forEach(dropPhoto); closeSheet(); toast("Deleted", "ok"); }
+      });
+    }, { big: true, ro: !canEditIdea(it) });
+  }
+
   // Glazes, underglazes, clay bodies and other supplies all use this popup
   function glazeSheet(g, { type = "glaze" } = {}) {
     const isNew = !g;
@@ -2198,6 +2360,7 @@ import {
     const btn = document.getElementById("clear-ex"); if (btn) btn.disabled = true;
     for (const p of state.pieces.filter((x) => x.example)) { await api.remove("pieces", p.id); pieceIds(p).forEach(dropPhoto); }
     for (const g of state.glazes.filter((x) => x.example)) { await api.remove("glazes", g.id); dropPhoto(g.photoId); }
+    for (const it of state.ideas.filter((x) => x.example)) { await api.remove("ideas", it.id); ideaIds(it).forEach(dropPhoto); }
     toast("Examples removed", "ok");
   }
 
@@ -2332,7 +2495,7 @@ import {
   document.getElementById("signin").addEventListener("click", (e) => {
     const b = e.target.closest("[data-si]"); if (b) setSiMode(b.dataset.si);
   });
-  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : pieceSheet(null, { student: state.tab === "students" })));
+  document.getElementById("fab").addEventListener("click", () => (state.tab === "glazes" ? glazeSheet(null, { type: state.filterType || "glaze" }) : state.tab === "ideas" ? ideaSheet(null) : pieceSheet(null, { student: state.tab === "students" })));
   const view = document.getElementById("view");
   // Swiping photos on a card: remember where each card is, and fetch the next photo as it comes into view
   function loadSlides(strip, i) {
@@ -2355,6 +2518,10 @@ import {
     if (t.closest("[data-act='csv-pieces']")) return downloadPieces();
     if (t.closest("[data-act='csv-glazes']")) return downloadGlazes();
     if (t.closest("[data-act='import-glazes']")) return importSheet();
+    if (t.closest("[data-act='clear-ideas']")) { Object.assign(state, { isearch: "", filterBy: "" }); return render(); }
+    const zi = t.closest("[data-zoom-idea]");
+    if (zi) { const it = ideaById(zi.dataset.zoomIdea); if (it) viewPhotos(await Promise.all(ideaIds(it).map(loadPhoto)), Number(zi.dataset.i || 0), ideaCaption(it)); return; }
+    const ic = t.closest("[data-idea]"); if (ic) return ideaView(ideaById(ic.dataset.idea));
     if (t.closest("[data-act='clear-filters']")) { Object.assign(state, { search: "", filterGlaze: "", filterForm: "", filterTag: "", filterStatus: "", filterArtist: "" }); return render(); }
     if (t.closest("[data-act='filter-glaze']")) return pickGlaze(state.filterGlaze, (id) => { state.filterGlaze = id; render(); window.scrollTo(0, 0); }, { filter: true });
     const sa = t.closest("[data-sarr]");
@@ -2379,6 +2546,7 @@ import {
   view.addEventListener("input", (e) => {
     if (e.target.id === "q") { state.search = e.target.value; render(); }
     if (e.target.id === "gq") { state.gsearch = e.target.value; render(); }
+    if (e.target.id === "iq") { state.isearch = e.target.value; render(); }
   });
   view.addEventListener("change", (e) => {
     const f = e.target.dataset && e.target.dataset.filter;

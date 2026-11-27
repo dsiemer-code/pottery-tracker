@@ -25,7 +25,7 @@ Make a **new** Firebase project for this app rather than reusing the Plushie Led
 
 ### 3. Create the database
 1. **Build → Firestore Database → Create database**. Pick a location near you (e.g. `us-east1`) and start in **production mode**.
-2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. These rules only let in people on the app's People list: **full access** (see and change everything) or **students** (look only). Anyone else who signs in can only ask to be let in.
+2. Open the **Rules** tab, replace everything with the contents of `firestore.rules` from this repo, and click **Publish**. These rules only let in people on the app's People list: **full access** (see and change everything) or **students** (see everything; add their own pieces and inspiration and change only those). The rules work by ownership rather than per feature, so new features where people add their own things don't need the rules republished. Anyone else who signs in can only ask to be let in.
 
 ### 4. Connect the app
 1. **Project settings** (gear icon) → **General** → **Your apps** → click the **`</>`** (Web) icon. Register the app (no Firebase Hosting needed).

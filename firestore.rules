@@ -1,9 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Who can do what:
+    // Who can do what. These are written around ownership, not around each feature, so new parts of the app
+    // where people add their own things work without publishing new rules:
     //   Full access - listed under studio/shared/members with role "full": see and change everything, manage people.
-    //   Student     - listed with role "student": see everything, add and change only their own student pieces.
+    //   Student     - listed with role "student": see everything; add their own things (marked with their uid in "by")
+    //                 and change or delete only those.
     //   Anyone else who signs in can only ask to be let in (studio/shared/requests) and see their own request.
     // The first person to open the app after these rules are published becomes the first "full" member
     // (that's what settings/setup records). Publish these before turning sign-up back on.
@@ -12,30 +14,23 @@ service cloud.firestore {
     function setupPath() { return /databases/$(database)/documents/studio/shared/settings/setup; }
     function member() { return signedIn() && exists(memberPath()); }
     function full() { return member() && get(memberPath()).data.role == "full"; }
+    // People, requests and settings have their own rules below; everything else is the studio's records
+    function records(col) { return !(col in ["members", "requests", "settings"]); }
+    function mineBefore() { return resource.data.by == request.auth.uid; }
+    function mineAfter() { return request.resource.data.by == request.auth.uid; }
+    // A student's piece must be marked as one, so it shows under Student pieces, not with the studio's own
+    function markedOk(col) { return col != "pieces" || request.resource.data.student == true; }
 
-    // Pottery records: members read, full access writes
+    // The studio's records: pieces, glazes, photos, inspiration, and anything added later
     match /studio/shared/{col}/{id} {
-      allow read: if member() && col in ["pieces", "glazes", "photos", "settings"];
-      allow write: if full() && col in ["pieces", "glazes", "photos"];
+      allow read: if member() && col != "requests";
+      allow write: if full() && records(col);
+      allow create: if member() && records(col) && mineAfter() && markedOk(col);
+      allow update: if member() && records(col) && mineBefore() && mineAfter() && markedOk(col);
+      allow delete: if member() && records(col) && mineBefore();
     }
     match /studio/shared/settings/studio {
       allow write: if full();
-    }
-
-    // Students add their own pieces (marked student, with their uid in "by") and can change or delete only those.
-    // Full access can still change any of them through the rule above.
-    function student() { return member() && get(memberPath()).data.role == "student"; }
-    function mineAfter() { return request.resource.data.student == true && request.resource.data.by == request.auth.uid; }
-    function mineBefore() { return resource.data.student == true && resource.data.by == request.auth.uid; }
-    match /studio/shared/pieces/{id} {
-      allow create: if student() && mineAfter();
-      allow update: if student() && mineBefore() && mineAfter();
-      allow delete: if student() && mineBefore();
-    }
-    // Their photos: added with their uid, removable only by them (photos never change once written)
-    match /studio/shared/photos/{id} {
-      allow create: if student() && request.resource.data.by == request.auth.uid;
-      allow delete: if student() && resource.data.by == request.auth.uid;
     }
 
     // First-time setup marker: anyone signed in can check it; it can only be made once, with its first member
